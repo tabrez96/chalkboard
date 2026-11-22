@@ -1,12 +1,14 @@
-{% extends "base.html" %}
+{% extends "layouts/app.html" %}
 {% block title %}Subjects{% endblock %}
-{% block body %}
-<main class="page">
+{% set active = "subjects" %}
+{% block main %}
+<header class="page-head">
+  <p class="eyebrow">Chalkboard</p>
   <h1>Subjects</h1>
-  <p>Signed in as {{ g.teacher.email }}.</p>
-  <form method="post" action="{{ url_for('auth.logout') }}">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-    <button type="submit" class="btn">Sign out</button>
-  </form>
-</main>
+</header>
+<p>Signed in as {{ g.teacher.email }}.</p>
+<form method="post" action="{{ url_for('auth.logout') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <button type="submit" class="btn">Sign out</button>
+</form>
 {% endblock %}
