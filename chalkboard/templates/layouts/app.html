@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="shell{% if g.teacher.sidebar_collapsed %} is-collapsed{% endif %}">
+  {% include "_sidebar.html" %}
+  <main class="main" id="main">{% block main %}{% endblock %}</main>
+</div>
+{% endblock %}

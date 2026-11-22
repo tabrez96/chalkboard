@@ -1,0 +1,21 @@
+{% extends "layouts/app.html" %}
+{% block title %}Settings{% endblock %}
+{% set active = "settings" %}
+{% block main %}
+<header class="page-head">
+  <p class="eyebrow">{{ subject.name if subject else "Chalkboard" }}</p>
+  <h1>Settings</h1>
+</header>
+<div class="settings-grid">
+  <section class="card" aria-labelledby="appearance-title">
+    <h2 id="appearance-title">Appearance</h2>
+    <form method="post" action="{{ url_for('settings.theme') }}" class="segmented" role="group" aria-label="Theme">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="next" value="{{ url_for('settings.show') }}" />
+      <button type="submit" name="theme" value="light" aria-pressed="{{ 'true' if g.teacher.theme == 'light' else 'false' }}">Light</button>
+      <button type="submit" name="theme" value="dark" aria-pressed="{{ 'true' if g.teacher.theme == 'dark' else 'false' }}">Dark</button>
+      <button type="submit" name="theme" value="system" aria-pressed="{{ 'true' if g.teacher.theme == 'system' else 'false' }}">Match system</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

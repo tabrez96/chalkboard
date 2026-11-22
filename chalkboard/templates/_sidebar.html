@@ -1,0 +1,59 @@
+{% from "_icons.html" import icon %}
+{% set collapsed = g.teacher.sidebar_collapsed %}
+{% set here = request.full_path if request.query_string else request.path %}
+{% set toggle_label = "Expand sidebar" if collapsed else "Collapse sidebar" %}
+{% set subject = subject | default(None) %}
+{% set active = active | default(None) %}
+<aside class="sidebar" aria-label="Sidebar">
+  <div class="sidebar-head">
+    <img src="{{ url_for('static', filename='brand/mark.svg') }}" alt="" width="32" height="32" />
+    <span class="label wordmark">Chalkboard</span>
+    <form method="post" action="{{ url_for('settings.sidebar') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="collapsed" value="{{ '0' if collapsed else '1' }}" />
+      <input type="hidden" name="next" value="{{ here }}" />
+      <button type="submit" class="icon-btn" aria-expanded="{{ 'false' if collapsed else 'true' }}" aria-controls="sidebar-nav" aria-label="{{ toggle_label }}" data-tip="{{ toggle_label }}">{{ icon('sidebar') }}</button>
+    </form>
+  </div>
+
+  {% set switcher_label = ("Subject: " ~ subject.name) if subject else "Choose a subject" %}
+  <a class="switcher" href="{{ url_for('subjects.index') }}" aria-label="{{ switcher_label }}" data-tip="{{ switcher_label }}">
+    {% if subject %}
+    <span class="switcher-tile has-subject" style="background: {{ subject.colour }}" aria-hidden="true">{{ subject.name[:1] }}</span>
+    <span class="label switcher-text">{{ subject.name }}</span>
+    {% else %}
+    <span class="switcher-tile" aria-hidden="true">{{ icon('grid', 16) }}</span>
+    <span class="label switcher-text">Choose a subject</span>
+    {% endif %}
+    <span class="chevron">{{ icon('chevron-down', 16) }}</span>
+  </a>
+
+  <nav id="sidebar-nav" aria-label="Main">
+    {% if subject %}
+    {% for endpoint, label, icon_name in SUBJECT_PAGES %}
+    {% set url = page_url(endpoint, subject.id) %}
+    {% if url %}
+    <a class="nav-link" href="{{ url }}" aria-label="{{ label }}" data-tip="{{ label }}"{% if active == endpoint %} aria-current="page"{% endif %}>{{ icon(icon_name) }}<span class="label">{{ label }}</span></a>
+    {% else %}
+    <a class="nav-link" aria-disabled="true" tabindex="0" aria-label="{{ label }}" data-tip="{{ label }}">{{ icon(icon_name) }}<span class="label">{{ label }}</span></a>
+    {% endif %}
+    {% endfor %}
+    {% endif %}
+  </nav>
+
+  <div class="sidebar-foot">
+    <a class="nav-link" href="{{ url_for('subjects.index') }}" aria-label="All subjects" data-tip="All subjects"{% if active == "subjects" %} aria-current="page"{% endif %}>{{ icon('grid') }}<span class="label">All subjects</span></a>
+    <a class="nav-link" href="{{ url_for('settings.show') }}" aria-label="Settings" data-tip="Settings"{% if active == "settings" %} aria-current="page"{% endif %}>{{ icon('gear') }}<span class="label">Settings</span></a>
+    <form method="post" action="{{ url_for('settings.theme') }}" class="segmented" role="group" aria-label="Theme">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="next" value="{{ here }}" />
+      <button type="submit" name="theme" value="light" aria-pressed="{{ 'true' if g.teacher.theme == 'light' else 'false' }}" aria-label="Light" data-tip="Light theme">{{ icon('sun', 14) }}<span class="label">Light</span></button>
+      <button type="submit" name="theme" value="dark" aria-pressed="{{ 'true' if g.teacher.theme == 'dark' else 'false' }}" aria-label="Dark" data-tip="Dark theme">{{ icon('moon', 14) }}<span class="label">Dark</span></button>
+    </form>
+    <a class="status" href="{{ url_for('settings.show') }}" aria-label="Ollama server: not checked yet" data-tip="Ollama server: not checked yet"><span class="dot" aria-hidden="true"></span><span class="label">Ollama server not checked</span></a>
+    <div class="teacher" role="group" aria-label="Signed in as {{ g.teacher.name }}" data-tip="{{ g.teacher.name }}">
+      <span class="avatar" aria-hidden="true">{{ g.teacher.name[:1] }}</span>
+      <span class="label"><strong>{{ g.teacher.name }}</strong><span>{{ g.teacher.email }}</span></span>
+    </div>
+  </div>
+</aside>
