@@ -73,6 +73,8 @@ Prerequisites: Docker with Compose, uv 0.13.9, Node.js (for `npx`).
   - If `.env` sets a custom `POSTGRES_PASSWORD`, first run `export CHALKBOARD_DATABASE_URL="postgresql+psycopg://chalkboard:<POSTGRES_PASSWORD>@localhost:5432/chalkboard"`. Host commands don't read `.env`.
 - New migration: `uv run alembic revision --autogenerate -m "<what changes>"`; apply it with `uv run alembic upgrade head`.
 - Tests: `docker compose up -d db`, then `uv run pytest` (creates and drops `chalkboard_test`; override the URL with `CHALKBOARD_TEST_DATABASE_URL`).
+- Create the first account: `uv run flask --app chalkboard create-teacher --email you@example.com --name "Your name"` (with Compose: `docker compose exec web flask --app chalkboard create-teacher ...`). It asks for the password twice.
+- Reset a password: `uv run flask --app chalkboard reset-password --email you@example.com`.
 - Format: `uv run ruff format . && npx prettier@3.10.1 --write .`
 - Checks (same as CI): `uv run ruff format --check . && uv run ruff check .` and `npx prettier@3.10.1 --check .`
 

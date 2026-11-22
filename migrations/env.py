@@ -3,6 +3,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine
 
+import chalkboard.models  # noqa: F401  (registers models on Base.metadata)
 from chalkboard.config import Settings
 from chalkboard.db import Base
 

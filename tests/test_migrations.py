@@ -22,3 +22,9 @@ def test_rollback_probe_b_is_gone(db_session):
         db_session.execute(text("SELECT to_regclass('rollback_probe')")).scalar()
         is None
     )
+
+
+def test_teachers_table_exists(db_session):
+    assert (
+        db_session.execute(text("SELECT to_regclass('teachers')")).scalar() is not None
+    )
