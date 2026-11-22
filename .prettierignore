@@ -1,0 +1,9 @@
+# Jinja templates: Prettier's HTML parser corrupts Jinja tags ({{ }}, {% %}), so templates are never formatted.
+templates/
+chalkboard/templates/
+# Design library is owned by the designer and not changed by code tickets.
+design/
+# Generated or tool-managed files.
+uv.lock
+.dmi/
+CLAUDE.md
