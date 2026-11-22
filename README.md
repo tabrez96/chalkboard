@@ -1,4 +1,5 @@
 <!-- about -->
+
 # Chalkboard
 
 **Teacher-approved sources in, cited course plans out**
@@ -64,7 +65,25 @@ Connect the Ollama server, choose allowed websites, theme, backups and deletion
 
 ## Development
 
-TODO: build and test instructions, added with the first code.
+Prerequisites: Docker with Compose, uv 0.13.9, Node.js (for `npx`).
+
+- Install dependencies: `uv sync`
+- Run everything: `docker compose up --build`, then http://localhost:8000/healthz returns `{"status": "ok"}`.
+- Run the app locally against the Compose database: `docker compose up -d db`, `uv run alembic upgrade head`, `uv run flask --app chalkboard run --debug`
+  - If `.env` sets a custom `POSTGRES_PASSWORD`, first run `export CHALKBOARD_DATABASE_URL="postgresql+psycopg://chalkboard:<POSTGRES_PASSWORD>@localhost:5432/chalkboard"`. Host commands don't read `.env`.
+- New migration: `uv run alembic revision --autogenerate -m "<what changes>"`; apply it with `uv run alembic upgrade head`.
+- Tests: `docker compose up -d db`, then `uv run pytest` (creates and drops `chalkboard_test`; override the URL with `CHALKBOARD_TEST_DATABASE_URL`).
+- Format: `uv run ruff format . && npx prettier@3.10.1 --write .`
+- Checks (same as CI): `uv run ruff format --check . && uv run ruff check .` and `npx prettier@3.10.1 --check .`
+
+Configuration (environment variables):
+
+- `CHALKBOARD_DATABASE_URL`: SQLAlchemy URL of the PostgreSQL database.
+- `CHALKBOARD_SECRET_KEY`: key that signs sessions.
+- `CHALKBOARD_DATA_DIR`: where uploaded files and other data are stored.
+- `CHALKBOARD_BACKUP_DIR`: where backups are written.
+
+Set a real `CHALKBOARD_SECRET_KEY` and `POSTGRES_PASSWORD` in a `.env` file next to `compose.yaml` for anything but local development. The password is placed inside the database URL, so use URL-safe values (no `@`, `:` or `/`): generate both with `openssl rand -hex 32`.
 
 ---
 
