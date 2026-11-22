@@ -1,4 +1,5 @@
 {% extends "layouts/app.html" %}
+{% from "_icons.html" import icon %}
 {% block title %}Settings{% endblock %}
 {% set active = "settings" %}
 {% block main %}
@@ -7,6 +8,46 @@
   <h1>Settings</h1>
 </header>
 <div class="settings-grid">
+  <section class="card card-ollama" aria-labelledby="ollama-title">
+    {% set state = result.state.value if result else g.teacher.ollama_status %}
+    <div class="card-head">
+      <h2 id="ollama-title">Ollama server</h2>
+      {% if state == "ok" %}<span class="chip chip-ok">Connected</span>
+      {% elif state == "unreachable" %}<span class="chip chip-flag">Not connected</span>
+      {% elif state == "model_missing" %}<span class="chip chip-flag">Model missing</span>
+      {% else %}<span class="chip">Not checked</span>{% endif %}
+    </div>
+    <form method="post" action="{{ url_for('settings.ollama') }}" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="field-row">
+        {% for field in (ollama_form.ollama_url, ollama_form.embed_model, ollama_form.write_model) %}
+        <div class="field">
+          {{ field.label }}
+          <input id="{{ field.id }}" name="{{ field.name }}" type="text" value="{{ field.data or '' }}"{% if field.errors %} aria-invalid="true" aria-describedby="{{ field.id }}-error"{% endif %} />
+          {% if field.errors %}<p class="field-error" id="{{ field.id }}-error">{{ field.errors[0] }}</p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="actions">
+        <button type="submit" class="btn btn-primary" name="action" value="test">Test connection</button>
+        <button type="submit" class="btn" name="action" value="save">Save</button>
+        <span class="hint">Changing the embedding model re-reads all sources.</span>
+      </div>
+    </form>
+    {% for message in get_flashed_messages() %}
+    <p class="banner banner-info" role="status">{{ message }}</p>
+    {% endfor %}
+    {% if result and result.state.value == "ok" %}
+    <div class="banner banner-info" role="status">{{ icon("check") }}<p><strong>Connected.</strong> Both models are installed. Answer in {{ "%.1f"|format(result.seconds) }} s.</p></div>
+    {% elif result and result.state.value == "unreachable" %}
+    <div class="banner banner-error" role="alert">{{ icon("alert") }}<p><strong>No answer from {{ netloc(tested.url) }}.</strong> Check that the Proxmox server is on, Ollama is running, and this computer can reach it on your network. Nothing was changed.</p></div>
+    {% elif result %}
+    <div class="banner banner-warning" role="alert">{{ icon("alert") }}<div>
+      <p><strong>{{ result.missing | join(" and ") }} {{ "isn't" if result.missing | length == 1 else "aren't" }} installed on the Ollama server.</strong> Run {{ "this" if result.missing | length == 1 else "these" }} on the server, then test again:</p>
+      {% for command in result.pull_commands %}<code class="command">{{ command }}</code>{% endfor %}
+    </div></div>
+    {% endif %}
+  </section>
   <section class="card" aria-labelledby="appearance-title">
     <h2 id="appearance-title">Appearance</h2>
     <form method="post" action="{{ url_for('settings.theme') }}" class="segmented" role="group" aria-label="Theme">

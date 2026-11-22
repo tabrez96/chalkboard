@@ -1,0 +1,23 @@
+{% from "_icons.html" import icon %}
+{% macro ollama_status_link(teacher) -%}
+{% set status = {
+  "unknown": ("Ollama server not checked", "not checked yet", "dot", "status"),
+  "ok": ("Ollama server connected", "connected", "dot dot-ok", "status"),
+  "unreachable": ("Ollama server unreachable", "unreachable", "dot dot-down", "status status-down"),
+  "model_missing": ("Ollama model missing", "a model is missing", "dot dot-warn", "status"),
+}[teacher.ollama_status] %}
+<a class="{{ status[3] }}" href="{{ url_for('settings.show') }}" aria-label="Ollama server: {{ status[1] }}" data-tip="Ollama server: {{ status[1] }}"><span class="{{ status[2] }}" aria-hidden="true"></span><span class="label">{{ status[0] }}</span></a>
+{%- endmacro %}
+
+{% macro ollama_banner(teacher) -%}
+{% if teacher.ollama_status == "unreachable" %}
+<div class="banner banner-error ollama-banner" role="alert">
+  {{ icon("alert") }}
+  <p><strong>Can't reach the Ollama server at {{ ollama_host(teacher) }}.</strong> Writing, search and the assistant are paused. Your sources and approved plans are still here.</p>
+  <form method="post" action="{{ url_for('settings.check_ollama') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn">Check connection</button>
+  </form>
+</div>
+{% endif %}
+{%- endmacro %}

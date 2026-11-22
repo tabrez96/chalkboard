@@ -85,6 +85,9 @@ Configuration (environment variables):
 - `CHALKBOARD_SECRET_KEY`: key that signs sessions.
 - `CHALKBOARD_DATA_DIR`: where uploaded files and other data are stored.
 - `CHALKBOARD_BACKUP_DIR`: where backups are written.
+- `CHALKBOARD_OLLAMA_URL`: address of the Ollama server (default `http://localhost:11434`); Settings can override it.
+- `CHALKBOARD_EMBED_MODEL`: embedding model (default `qwen3-embedding:0.6b`); Settings can override it.
+- `CHALKBOARD_WRITE_MODEL`: writing model (default `qwen3.5:9b`); Settings can override it.
 
 Set a real `CHALKBOARD_SECRET_KEY` and `POSTGRES_PASSWORD` in a `.env` file next to `compose.yaml` for anything but local development. The password is placed inside the database URL, so use URL-safe values (no `@`, `:` or `/`): generate both with `openssl rand -hex 32`.
 

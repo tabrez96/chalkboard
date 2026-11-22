@@ -22,7 +22,17 @@ class Teacher(Base):
     sidebar_collapsed: Mapped[bool] = mapped_column(server_default=sa.false())
     # No foreign key yet: the subjects table arrives with the subjects ticket.
     last_subject_id: Mapped[int | None]
+    # Null until saved on S08; the CHALKBOARD_* defaults apply meanwhile (ai.config_for).
+    ollama_url: Mapped[str | None] = mapped_column(String(255))
+    embed_model: Mapped[str | None] = mapped_column(String(100))
+    write_model: Mapped[str | None] = mapped_column(String(100))
+    # Last known result of talking to the Ollama server; drives the sidebar dot and the banner.
+    ollama_status: Mapped[str] = mapped_column(String(13), server_default="unknown")
 
     __table_args__ = (
         CheckConstraint("theme IN ('light', 'dark', 'system')", name="theme"),
+        CheckConstraint(
+            "ollama_status IN ('unknown', 'ok', 'unreachable', 'model_missing')",
+            name="ollama_status",
+        ),
     )
