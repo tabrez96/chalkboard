@@ -19,6 +19,9 @@ services:
     environment:
       CHALKBOARD_DATABASE_URL: postgresql+psycopg://chalkboard:${POSTGRES_PASSWORD:-chalkboard}@db:5432/chalkboard
       CHALKBOARD_SECRET_KEY: ${CHALKBOARD_SECRET_KEY:-dev-not-secret}
+      CHALKBOARD_OLLAMA_URL: ${CHALKBOARD_OLLAMA_URL:-http://localhost:11434}
+      CHALKBOARD_EMBED_MODEL: ${CHALKBOARD_EMBED_MODEL:-qwen3-embedding:0.6b}
+      CHALKBOARD_WRITE_MODEL: ${CHALKBOARD_WRITE_MODEL:-qwen3.5:9b}
     volumes:
       - data:/app/data
       - backups:/app/backups

@@ -1,5 +1,8 @@
 from flask import Flask, current_app, url_for
 
+from chalkboard.ai import config_for
+from chalkboard.net import netloc
+
 SUBJECT_PAGES = [
     ("today.show", "Today", "calendar"),
     ("overview.show", "Course overview", "overview"),
@@ -17,4 +20,9 @@ def page_url(endpoint: str, subject_id: int) -> str | None:
 
 
 def init_shell(app: Flask) -> None:
-    app.jinja_env.globals.update(SUBJECT_PAGES=SUBJECT_PAGES, page_url=page_url)
+    app.jinja_env.globals.update(
+        SUBJECT_PAGES=SUBJECT_PAGES,
+        page_url=page_url,
+        netloc=netloc,
+        ollama_host=lambda teacher: netloc(config_for(teacher).url),
+    )
