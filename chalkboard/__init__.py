@@ -1,15 +1,28 @@
-from flask import Flask
+from datetime import timedelta
 
-from chalkboard import health
+from flask import Flask
+from flask_wtf import CSRFProtect
+
+from chalkboard import auth, cli, health, subjects
 from chalkboard.config import Settings
 from chalkboard.db import init_db
+
+csrf = CSRFProtect()
 
 
 def create_app(settings: Settings | None = None) -> Flask:
     settings = settings or Settings()
     app = Flask(__name__)
     app.config["SECRET_KEY"] = settings.secret_key
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
     app.extensions["chalkboard.settings"] = settings
     init_db(app, settings.database_url)
+    csrf.init_app(app)
     app.register_blueprint(health.bp)
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(subjects.bp)
+    app.before_request(auth.require_sign_in)
+    app.cli.add_command(cli.create_teacher)
+    app.cli.add_command(cli.reset_password)
     return app

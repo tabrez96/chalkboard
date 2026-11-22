@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Subjects{% endblock %}
+{% block body %}
+<main class="page">
+  <h1>Subjects</h1>
+  <p>Signed in as {{ g.teacher.email }}.</p>
+  <form method="post" action="{{ url_for('auth.logout') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <button type="submit" class="btn">Sign out</button>
+  </form>
+</main>
+{% endblock %}
