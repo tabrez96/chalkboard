@@ -1,14 +1,17 @@
 from datetime import date, datetime, time
 
 import sqlalchemy as sa
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
     ForeignKey,
+    Index,
     SmallInteger,
     String,
     Table,
+    Text,
     Time,
     UniqueConstraint,
     func,
@@ -114,6 +117,8 @@ class Subject(Base):
     colour: Mapped[str] = mapped_column(String(7))
     # "uploads": sources are uploads only; "web": pages from the ticked sites (or any site in open mode).
     web_access: Mapped[str] = mapped_column(String(7), server_default="uploads")
+    # Last source number handed out; numbers are never reused, so old citations never point at another file.
+    source_counter: Mapped[int] = mapped_column(server_default="0")
     class_times: Mapped[list[ClassTime]] = relationship(
         order_by="ClassTime.weekday", cascade="all, delete-orphan"
     )
@@ -209,4 +214,63 @@ class Job(Base):
             name="state",
         ),
         CheckConstraint("progress BETWEEN 0 AND 100", name="progress"),
+    )
+
+
+SOURCE_KINDS = ("pdf", "docx", "txt", "md", "web")
+
+
+class Source(Base):
+    __tablename__ = "sources"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    number: Mapped[int]
+    # The original file name, as shown to the teacher.
+    name: Mapped[str] = mapped_column(String(255))
+    # "upload" for uploads; the site's domain for saved pages.
+    origin: Mapped[str] = mapped_column(String(253), server_default="upload")
+    kind: Mapped[str] = mapped_column(String(4))
+    # Relative to Settings.data_dir, e.g. "sources/12.pdf".
+    file_path: Mapped[str] = mapped_column(String(255))
+    passages: Mapped[int] = mapped_column(server_default="0")
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL")
+    )
+    job: Mapped[Job | None] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("subject_id", "number"),
+        CheckConstraint("kind IN ('pdf', 'docx', 'txt', 'md', 'web')", name="kind"),
+    )
+
+
+class Chunk(Base):
+    __tablename__ = "chunks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"))
+    # 0-based order within the source.
+    position: Mapped[int]
+    # 1-based PDF pages; None for formats without pages.
+    page_start: Mapped[int | None]
+    page_end: Mapped[int | None]
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[list[float]] = mapped_column(
+        Vector(1024)
+    )  # ai.base.EMBED_DIMENSIONS
+
+    __table_args__ = (
+        UniqueConstraint("source_id", "position"),
+        Index(
+            "ix_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
     )

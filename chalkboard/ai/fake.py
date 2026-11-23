@@ -2,7 +2,13 @@
 
 import hashlib
 
-from chalkboard.ai.base import EMBED_DIMENSIONS, Vector
+from chalkboard.ai.base import (
+    EMBED_DIMENSIONS,
+    Health,
+    HealthState,
+    OllamaUnreachable,
+    Vector,
+)
 
 
 class FakeLLM:
@@ -30,3 +36,22 @@ class FakeEmbedder:
             seed = hashlib.sha256(text.encode()).digest()
             vectors.append([seed[i % 32] / 255 for i in range(EMBED_DIMENSIONS)])
         return vectors
+
+
+class FakeOllama(FakeEmbedder):
+    """Stands in for the Ollama client behind RedactingClient; set `up = False` to simulate an unreachable server."""
+
+    def __init__(self, up: bool = True):
+        super().__init__()
+        self.up = up
+
+    def embed(self, texts: list[str]) -> list[Vector]:
+        if not self.up:
+            raise OllamaUnreachable("down")
+        return super().embed(texts)
+
+    def health(self) -> Health:
+        return Health(HealthState.OK if self.up else HealthState.UNREACHABLE)
+
+    def close(self) -> None:
+        pass
