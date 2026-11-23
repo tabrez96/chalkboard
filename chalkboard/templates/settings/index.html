@@ -7,6 +7,7 @@
   <p class="eyebrow">{{ subject.name if subject else "Chalkboard" }}</p>
   <h1>Settings</h1>
 </header>
+<div class="settings-layout">
 <div class="settings-grid">
   <section class="card card-ollama" aria-labelledby="ollama-title">
     {% set state = result.state.value if result else g.teacher.ollama_status %}
@@ -58,5 +59,47 @@
       <button type="submit" name="theme" value="system" aria-pressed="{{ 'true' if g.teacher.theme == 'system' else 'false' }}">Match system</button>
     </form>
   </section>
+</div>
+<div class="settings-side">
+  {% set open_on = g.teacher.allow_any_site %}
+  <section class="card card-sites" aria-labelledby="sites-title">
+    <h2 id="sites-title">Allowed websites</h2>
+    <p class="card-sub">Subjects choose from this list in their settings.</p>
+    {% if sites %}
+    <ul class="site-list">
+      {% for site in sites %}
+      <li>
+        {{ icon("globe", 16) }}
+        <div>
+          <span class="site-name">{{ site.domain }}</span>
+          <span class="site-use">{{ site_subjects.get(site.id, []) | join(", ") or "Not used yet" }}</span>
+        </div>
+        <form method="post" action="{{ url_for('settings.remove_site', site_id=site.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="icon-btn" aria-label="Remove {{ site.domain }}" data-tip="Remove">{{ icon("trash", 16) }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="card-sub">No websites yet.</p>
+    {% endif %}
+    <form method="post" action="{{ url_for('settings.add_site') }}" class="site-add" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input id="domain" name="domain" type="text" placeholder="Add a site, e.g. nasa.gov" aria-label="Add a site" value="{{ site_form.domain.data or '' }}"{% if site_form.domain.errors %} aria-invalid="true" aria-describedby="domain-error"{% endif %} />
+      <button type="submit" class="btn">Add</button>
+      {% if site_form.domain.errors %}<p class="field-error" id="domain-error">{{ site_form.domain.errors[0] }}</p>{% endif %}
+    </form>
+    <form method="post" action="{{ url_for('settings.open_mode') }}" class="switch-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="allow_any" value="{{ '0' if open_on else '1' }}" />
+      <button type="submit" class="switch" role="switch" aria-checked="{{ 'true' if open_on else 'false' }}" aria-labelledby="open-label" aria-describedby="open-hint"></button>
+      <div>
+        <strong id="open-label">Allow any website</strong>
+        <span id="open-hint" class="site-use">{{ "On: any public website" if open_on else "Off: only the sites above" }}</span>
+      </div>
+    </form>
+  </section>
+</div>
 </div>
 {% endblock %}

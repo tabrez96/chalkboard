@@ -1,7 +1,14 @@
 from datetime import datetime
 
 import sqlalchemy as sa
-from sqlalchemy import CheckConstraint, DateTime, String, func
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from chalkboard.db import Base
@@ -28,6 +35,8 @@ class Teacher(Base):
     write_model: Mapped[str | None] = mapped_column(String(100))
     # Last known result of talking to the Ollama server; drives the sidebar dot and the banner.
     ollama_status: Mapped[str] = mapped_column(String(13), server_default="unknown")
+    # Open mode on S08: any public website may be saved as a source.
+    allow_any_site: Mapped[bool] = mapped_column(server_default=sa.false())
 
     __table_args__ = (
         CheckConstraint("theme IN ('light', 'dark', 'system')", name="theme"),
@@ -36,3 +45,19 @@ class Teacher(Base):
             name="ollama_status",
         ),
     )
+
+
+class AllowedSite(Base):
+    __tablename__ = "allowed_sites"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    teacher_id: Mapped[int] = mapped_column(
+        ForeignKey("teachers.id", ondelete="CASCADE")
+    )
+    # Normalised by sites.normalise_domain; matches the host and all its subdomains.
+    domain: Mapped[str] = mapped_column(String(253))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+    __table_args__ = (UniqueConstraint("teacher_id", "domain"),)
