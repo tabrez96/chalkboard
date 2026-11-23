@@ -1418,3 +1418,19 @@ a.btn {
   margin: 4px 0 0;
   font-size: 12px;
 }
+
+.job-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.job-status progress {
+  width: 120px;
+  accent-color: var(--primary);
+}
+
+.job-error {
+  color: var(--danger);
+}

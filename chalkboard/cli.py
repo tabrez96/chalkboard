@@ -1,10 +1,16 @@
+import logging
+import signal
+import threading
+
 import click
+from flask import current_app
 from flask.cli import with_appcontext
 from sqlalchemy import select
 
 from chalkboard.db import get_session
 from chalkboard.models import Teacher
 from chalkboard.passwords import MIN_LENGTH, hash_password, normalise_email
+from chalkboard.worker import run_worker
 
 
 def _check_length(password: str) -> None:
@@ -49,3 +55,21 @@ def reset_password(email, password):
     teacher.password_hash = hash_password(password)
     get_session().commit()
     click.echo(f"Password reset for {email}.")
+
+
+@click.command("worker")
+@click.option(
+    "--poll",
+    default=2.0,
+    show_default=True,
+    help="Seconds between checks when the queue is empty.",
+)
+@with_appcontext
+def worker(poll):
+    """Run queued jobs until stopped."""
+    logging.basicConfig(level=logging.INFO)
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.set())
+    click.echo("Worker started.")
+    run_worker(current_app._get_current_object(), poll, stop)

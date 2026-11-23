@@ -13,6 +13,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from chalkboard.db import Base
@@ -169,3 +170,43 @@ class Student(Base):
     # Never sent to a model: ai.RedactingClient replaces it before every request.
     name: Mapped[str] = mapped_column(String(100))
     note: Mapped[str] = mapped_column(String(200), server_default="")
+
+
+JOB_STATES = ("queued", "running", "waiting_ollama", "done", "failed")
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    teacher_id: Mapped[int] = mapped_column(
+        ForeignKey("teachers.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    kind: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSONB, server_default=sa.text("'{}'::jsonb"))
+    state: Mapped[str] = mapped_column(String(14), server_default="queued")
+    # Label of the current step, e.g. "Reading pages"; shown with the percent.
+    step: Mapped[str] = mapped_column(String(80), server_default="")
+    progress: Mapped[int] = mapped_column(SmallInteger, server_default="0")
+    # Why the job is waiting or failed; written for the teacher, shown as is.
+    error: Mapped[str | None] = mapped_column(String(500))
+    # Failed runs so far (Ollama waits don't count).
+    attempts: Mapped[int] = mapped_column(server_default="0")
+    # Bumped on every claim; a worker whose number is out of date lost the job and must not write to it.
+    claims: Mapped[int] = mapped_column(server_default="0")
+    run_after: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # Refreshed on claim and on every progress update; a running job with an old heartbeat lost its worker.
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint(
+            "state IN ('queued', 'running', 'waiting_ollama', 'done', 'failed')",
+            name="state",
+        ),
+        CheckConstraint("progress BETWEEN 0 AND 100", name="progress"),
+    )

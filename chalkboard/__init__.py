@@ -3,7 +3,17 @@ from datetime import timedelta
 from flask import Flask
 from flask_wtf import CSRFProtect
 
-from chalkboard import ai, auth, cli, health, settings_page, shell, students, subjects
+from chalkboard import (
+    ai,
+    auth,
+    cli,
+    health,
+    jobs,
+    settings_page,
+    shell,
+    students,
+    subjects,
+)
 from chalkboard.config import Settings
 from chalkboard.db import init_db
 
@@ -26,8 +36,10 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(subjects.bp)
     app.register_blueprint(students.bp)
     app.register_blueprint(settings_page.bp)
+    app.register_blueprint(jobs.bp)
     shell.init_shell(app)
     app.before_request(auth.require_sign_in)
     app.cli.add_command(cli.create_teacher)
     app.cli.add_command(cli.reset_password)
+    app.cli.add_command(cli.worker)
     return app
