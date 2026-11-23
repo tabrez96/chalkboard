@@ -17,8 +17,8 @@ from wtforms.validators import URL, AnyOf, DataRequired, Length, Regexp
 from chalkboard.ai import (
     Health,
     OllamaConfig,
-    client_for,
     config_for,
+    model_client,
     record_status,
 )
 from chalkboard.auth import current_teacher, is_safe_next, teacher_select
@@ -159,7 +159,7 @@ def render_settings(
 
 
 def run_check(config: OllamaConfig) -> Health:
-    client = client_for(config)
+    client = model_client(current_teacher(), config=config)
     try:
         return client.health()
     finally:

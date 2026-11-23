@@ -32,5 +32,6 @@
 {% if form %}{% include "subjects/_form.html" %}{% endif %}
 {% endblock %}
 {% block scripts %}
-{% if form %}<script src="{{ url_for('static', filename='js/subject-form.js') }}" defer></script>{% endif %}
+{% if form %}<script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/subject-form.js') }}" defer></script>{% endif %}
 {% endblock %}

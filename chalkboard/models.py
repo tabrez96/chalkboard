@@ -119,6 +119,9 @@ class Subject(Base):
     sites: Mapped[list[AllowedSite]] = relationship(
         secondary=subject_sites, order_by="AllowedSite.domain"
     )
+    students: Mapped[list[Student]] = relationship(
+        order_by="Student.id", cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         CheckConstraint("class_minutes BETWEEN 10 AND 240", name="class_minutes"),
@@ -151,3 +154,18 @@ class ClassTime(Base):
         UniqueConstraint("subject_id", "weekday"),
         CheckConstraint("weekday BETWEEN 0 AND 5", name="weekday"),
     )
+
+
+class Student(Base):
+    __tablename__ = "students"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # Never sent to a model: ai.RedactingClient replaces it before every request.
+    name: Mapped[str] = mapped_column(String(100))
+    note: Mapped[str] = mapped_column(String(200), server_default="")

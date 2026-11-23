@@ -4,15 +4,6 @@
 
   var chip = form.querySelector("[data-budget]");
 
-  // Keep keyboard focus in the dialog: make everything outside it inert.
-  var node = form.closest(".modal-backdrop");
-  while (node && node !== document.body) {
-    Array.prototype.forEach.call(node.parentNode.children, function (sibling) {
-      if (sibling !== node) sibling.inert = true;
-    });
-    node = node.parentNode;
-  }
-
   function chosenDays() {
     var days = {};
     // Like the server's form_times(): a day without a start time doesn't count.

@@ -1,7 +1,8 @@
 import httpx
 
-from chalkboard.ai import Embedder, LLMClient, OllamaClient, OllamaConfig
+from chalkboard.ai import Embedder, LLMClient, OllamaConfig
 from chalkboard.ai.fake import FakeEmbedder, FakeLLM
+from chalkboard.ai.ollama import OllamaClient
 
 
 def test_fakes_implement_protocols():

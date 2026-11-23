@@ -4,7 +4,8 @@ from pathlib import Path
 import httpx
 import pytest
 
-from chalkboard.ai import OllamaClient, OllamaConfig
+from chalkboard.ai import OllamaConfig
+from chalkboard.ai.ollama import OllamaClient
 from chalkboard.net import OutboundBlocked, guarded_client
 
 OLLAMA = "http://ollama.test:11434"

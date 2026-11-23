@@ -1320,3 +1320,101 @@ a.btn {
     grid-template-columns: 1fr;
   }
 }
+
+/* Students */
+.page-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.name-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-size: 14px;
+}
+
+.student-card {
+  padding: 0 12px;
+}
+
+.student-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.student-table th {
+  padding: 14px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.student-table td {
+  height: 52px;
+  padding: 0 10px;
+  border-top: 1px solid var(--line);
+}
+
+.student-name {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.student-actions {
+  width: 48px;
+  text-align: right;
+}
+
+.initials {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.students-empty {
+  max-width: none;
+  margin: 0;
+  min-height: calc(100vh - 210px);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.empty-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.modal-narrow {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.modal-narrow .modal-foot {
+  margin-top: 16px;
+}
+
+.modal-foot-start {
+  margin-right: auto;
+}
+
+.field-hint {
+  margin: 4px 0 0;
+  font-size: 12px;
+}

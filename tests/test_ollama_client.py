@@ -3,8 +3,9 @@ import json
 import httpx
 import pytest
 
-from chalkboard.ai import HealthState, OllamaClient, OllamaConfig
+from chalkboard.ai import HealthState, OllamaConfig
 from chalkboard.ai.base import ModelMissing, OllamaError, OllamaUnreachable
+from chalkboard.ai.ollama import OllamaClient
 
 CONFIG = OllamaConfig("http://ollama.test:11434", "qwen3-embedding:0.6b", "qwen3.5:9b")
 
