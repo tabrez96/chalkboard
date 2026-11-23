@@ -1,0 +1,55 @@
+{% extends "layouts/app.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Students{% endblock %}
+{% block main %}
+<header class="page-head page-head-row">
+  <div>
+    <p class="eyebrow">{{ subject.name }}</p>
+    <h1>Students</h1>
+  </div>
+  {% if students %}
+  <div class="page-actions">
+    <span class="muted">{{ students | length }} student{{ "" if students | length == 1 else "s" }}</span>
+    <a class="btn btn-secondary" href="{{ url_for('students.import_form', subject_id=subject.id) }}">Import CSV</a>
+    <a class="btn btn-primary" href="{{ url_for('students.new', subject_id=subject.id) }}">{{ icon('plus', 16) }}Add student</a>
+  </div>
+  {% endif %}
+</header>
+{% for message in get_flashed_messages() %}
+<p class="banner banner-info" role="status">{{ message }}</p>
+{% endfor %}
+<p class="name-note">{{ icon('lock', 16) }}<span><strong>Names stay in Chalkboard.</strong> They are never sent to the Ollama server.</span></p>
+{% if students %}
+<section class="card student-card">
+  <table class="student-table">
+    <thead>
+      <tr><th scope="col">Name</th><th scope="col">Note</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+    </thead>
+    <tbody>
+      {% for s in students %}
+      <tr>
+        <td><span class="student-name"><span class="initials" aria-hidden="true">{{ initials(s.name) }}</span>{{ s.name }}</span></td>
+        <td class="muted">{{ s.note }}</td>
+        <td class="student-actions"><a class="icon-btn" href="{{ url_for('students.edit', subject_id=subject.id, student_id=s.id) }}" aria-label="Edit {{ s.name }}" data-tip="Edit">{{ icon('pencil', 16) }}</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% else %}
+<section class="card empty-card students-empty" aria-labelledby="empty-title">
+  <span class="empty-tile" aria-hidden="true">{{ icon('users', 24) }}</span>
+  <h2 id="empty-title">No students yet</h2>
+  <p class="muted">Add your class list to keep track of who is in {{ subject.name }}.<br>Students are records only; they never sign in.</p>
+  <div class="empty-actions">
+    <a class="btn btn-secondary" href="{{ url_for('students.import_form', subject_id=subject.id) }}">Import CSV</a>
+    <a class="btn btn-primary" href="{{ url_for('students.new', subject_id=subject.id) }}">{{ icon('plus', 16) }}Add student</a>
+  </div>
+</section>
+{% endif %}
+{% if form %}{% include "students/_form.html" %}{% endif %}
+{% if import_form %}{% include "students/_import.html" %}{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if form or import_form %}<script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>{% endif %}
+{% endblock %}

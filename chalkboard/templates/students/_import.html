@@ -1,0 +1,27 @@
+{% from "_icons.html" import icon %}
+{% set index_url = url_for('students.index', subject_id=subject.id) %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="import-title">
+    <div class="modal-head">
+      <h2 id="import-title">Import CSV</h2>
+      <a class="icon-btn" href="{{ index_url }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <form method="post" action="{{ url_for('students.import_csv', subject_id=subject.id) }}" enctype="multipart/form-data" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <p class="muted">One student per line: name, then an optional note. A first line reading "name" is skipped.</p>
+      <div class="field">
+        {{ import_form.file.label }}
+        {% if import_form.file.errors %}
+        {{ import_form.file(accept=".csv,text/csv", autofocus=True, **{"aria-invalid": "true", "aria-describedby": "file-error"}) }}
+        <p class="field-error" id="file-error">{{ import_form.file.errors[0] }}</p>
+        {% else %}
+        {{ import_form.file(accept=".csv,text/csv", autofocus=True) }}
+        {% endif %}
+      </div>
+      <div class="modal-foot">
+        <a class="btn" href="{{ index_url }}">Cancel</a>
+        <button type="submit" class="btn btn-primary">Import</button>
+      </div>
+    </form>
+  </div>
+</div>
