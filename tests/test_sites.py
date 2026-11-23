@@ -8,7 +8,6 @@ from chalkboard.sites import (
     host_matches,
     may_fetch,
     normalise_domain,
-    subjects_by_site,
 )
 
 OPENSTAX = SiteAccess(False, frozenset({"openstax.org"}))
@@ -123,7 +122,3 @@ def test_may_fetch_unticked_site():
 def test_may_fetch_rejects_bad_urls(url):
     assert not may_fetch(url, OPEN)
     assert not may_fetch(url, OPENSTAX)
-
-
-def test_subjects_by_site_empty_until_subjects_exist():
-    assert subjects_by_site(None) == {}

@@ -2,7 +2,7 @@ import pytest
 from flask import Blueprint
 from sqlalchemy import delete
 
-from chalkboard.models import Teacher
+from chalkboard.models import Subject, Teacher
 from chalkboard.passwords import hash_password
 from tests.conftest import csrf_token, make_app, sign_in
 
@@ -146,6 +146,17 @@ def test_unsafe_next_ignored(client, teacher, target):
     assert sign_in(client, next=target).headers["Location"] == "/subjects"
 
 
+def last_subject(db_session, teacher) -> int:
+    subject = Subject(
+        teacher_id=teacher.id, name="Physics", class_minutes=50, colour="#0E7A64"
+    )
+    db_session.add(subject)
+    db_session.flush()
+    teacher.last_subject_id = subject.id
+    db_session.commit()
+    return subject.id
+
+
 def test_last_subject_goes_to_today(db_connection, db_session, teacher):
     app = make_app(db_connection)
     today = Blueprint("today", __name__)
@@ -155,15 +166,13 @@ def test_last_subject_goes_to_today(db_connection, db_session, teacher):
         return "today"
 
     app.register_blueprint(today)
-    teacher.last_subject_id = 7
-    db_session.commit()
+    subject_id = last_subject(db_session, teacher)
     client = app.test_client()
-    assert sign_in(client).headers["Location"] == "/subjects/7/today"
+    assert sign_in(client).headers["Location"] == f"/subjects/{subject_id}/today"
 
 
 def test_last_subject_without_today_page_goes_to_subjects(client, db_session, teacher):
-    teacher.last_subject_id = 7
-    db_session.commit()
+    last_subject(db_session, teacher)
     assert sign_in(client).headers["Location"] == "/subjects"
 
 

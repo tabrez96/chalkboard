@@ -86,5 +86,19 @@ def may_fetch(url: str, access: SiteAccess) -> bool:
 
 
 def subjects_by_site(teacher) -> dict[int, list[str]]:
-    # Filled in by the subjects ticket (subject_sites).
-    return {}
+    """Names of the teacher's subjects that use each allowed site, by site id."""
+    from sqlalchemy import select
+
+    from chalkboard.db import get_session
+    from chalkboard.models import Subject, subject_sites
+
+    rows = get_session().execute(
+        select(subject_sites.c.allowed_site_id, Subject.name)
+        .join(Subject, Subject.id == subject_sites.c.subject_id)
+        .where(Subject.teacher_id == teacher.id, Subject.web_access == "web")
+        .order_by(Subject.name)
+    )
+    used: dict[int, list[str]] = {}
+    for site_id, name in rows:
+        used.setdefault(site_id, []).append(name)
+    return used

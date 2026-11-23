@@ -18,16 +18,30 @@
   </div>
 
   {% set switcher_label = ("Subject: " ~ subject.name) if subject else "Choose a subject" %}
-  <a class="switcher" href="{{ url_for('subjects.index') }}" aria-label="{{ switcher_label }}" data-tip="{{ switcher_label }}">
-    {% if subject %}
-    <span class="switcher-tile has-subject" style="background: {{ subject.colour }}" aria-hidden="true">{{ subject.name[:1] }}</span>
-    <span class="label switcher-text">{{ subject.name }}</span>
-    {% else %}
-    <span class="switcher-tile" aria-hidden="true">{{ icon('grid', 16) }}</span>
-    <span class="label switcher-text">Choose a subject</span>
-    {% endif %}
-    <span class="chevron">{{ icon('chevron-down', 16) }}</span>
-  </a>
+  {% set all_subjects = teacher_subjects() %}
+  <details class="switcher-menu">
+    <summary class="switcher" aria-label="{{ switcher_label }}" data-tip="{{ switcher_label }}">
+      {% if subject %}
+      <span class="switcher-tile has-subject" style="background: {{ subject.colour }}" aria-hidden="true">{{ subject.name[:1] }}</span>
+      <span class="label switcher-text">{{ subject.name }}<span class="switcher-sub">{{ switcher_line(subject.grade, subject.class_minutes) }}</span></span>
+      {% else %}
+      <span class="switcher-tile" aria-hidden="true">{{ icon('grid', 16) }}</span>
+      <span class="label switcher-text">Choose a subject<span class="switcher-sub">{% if not all_subjects %}No subjects yet{% elif all_subjects | length == 1 %}1 subject{% else %}{{ all_subjects | length }} subjects{% endif %}</span></span>
+      {% endif %}
+      <span class="chevron">{{ icon('chevron-down', 16) }}</span>
+    </summary>
+    <div class="switcher-panel">
+      {% for s in all_subjects %}
+      <a class="switcher-item" href="{{ url_for('subjects.open', subject_id=s.id) }}" aria-label="{{ s.name }}" data-tip="{{ s.name }}"{% if subject and s.id == subject.id %} aria-current="true"{% endif %}>
+        <span class="switcher-tile has-subject" style="background: {{ s.colour }}" aria-hidden="true">{{ s.name[:1] }}</span>{{ s.name }}
+      </a>
+      {% endfor %}
+      {% if subject %}
+      <a class="switcher-item" href="{{ url_for('subjects.settings', subject_id=subject.id) }}" aria-label="Subject settings" data-tip="Subject settings">{{ icon('gear', 16) }}Subject settings</a>
+      {% endif %}
+      <a class="switcher-item" href="{{ url_for('subjects.new') }}" aria-label="New subject" data-tip="New subject">{{ icon('plus', 16) }}New subject</a>
+    </div>
+  </details>
 
   <nav id="sidebar-nav" aria-label="Main">
     {% if subject %}
