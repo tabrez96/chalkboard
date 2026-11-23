@@ -1,0 +1,141 @@
+{% from "_icons.html" import icon %}
+{% macro control(field) -%}
+{%- if field.errors -%}
+{{ field(**dict(kwargs, **{"aria-invalid": "true", "aria-describedby": field.id ~ "-error"})) }}
+{%- else -%}
+{{ field(**kwargs) }}
+{%- endif -%}
+{%- endmacro %}
+{% macro error(field) -%}
+{%- if field.errors %}<p class="field-error" id="{{ field.id }}-error">{{ field.errors[0] }}</p>{% endif -%}
+{%- endmacro %}
+{% set chosen = form.days.data or [] %}
+{% set is_web = form.web_access.data == "web" %}
+<div class="modal-backdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="subject-form-title">
+    <div class="modal-head">
+      <h2 id="subject-form-title">{{ "Subject settings" if editing else "New subject" }}</h2>
+      <a class="icon-btn" href="{{ url_for('subjects.index') }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <form method="post" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="form-top">
+        <div class="field">
+          {{ form.name.label }}
+          {{ control(form.name, autofocus=True) }}
+          {{ error(form.name) }}
+        </div>
+        <div class="field">
+          {{ form.grade.label }}
+          {{ control(form.grade, placeholder="Grade 11") }}
+          {{ error(form.grade) }}
+        </div>
+        <div class="field">
+          {{ form.class_minutes.label }}
+          <div class="with-suffix">
+            {{ control(form.class_minutes, min=10, max=240) }}<span class="muted">min</span>
+          </div>
+          {{ error(form.class_minutes) }}
+        </div>
+      </div>
+      <div class="form-board">
+        <div class="field">
+          {{ form.board.label }}
+          {{ control(form.board) }}
+          {{ error(form.board) }}
+        </div>
+        <div class="field" data-board-name{% if form.board.data != "state" %} hidden{% endif %}>
+          {{ form.state_board.label }}
+          {{ control(form.state_board, placeholder="Maharashtra State Board") }}
+          {{ error(form.state_board) }}
+        </div>
+      </div>
+      <hr />
+      <div class="form-row">
+        <span class="row-label" id="days-label">Class days</span>
+        <div>
+          <div class="days" role="group" aria-labelledby="days-label">
+            {% for i, day in form.days.choices %}
+            <button type="button" class="day" data-day="{{ i }}" aria-pressed="{{ 'true' if i in chosen else 'false' }}">{{ day }}</button>
+            <input type="checkbox" name="days" value="{{ i }}" hidden{% if i in chosen %} checked{% endif %} />
+            {% endfor %}
+          </div>
+          {{ error(form.days) }}
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="row-label">Times</span>
+        <div class="times">
+          {% for i, day in form.days.choices %}
+          {% set field = form["time_" ~ i] %}
+          <div class="time-field" data-time-for="{{ i }}"{% if i not in chosen %} hidden{% endif %}>
+            <label for="{{ field.id }}">{{ day }}</label>
+            {{ control(field) }}
+            {{ error(field) }}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="row-label">Term</span>
+        <div class="term">
+          <div class="field">
+            <label class="visually-hidden" for="term_start">First day</label>
+            {{ control(form.term_start) }}
+            {{ error(form.term_start) }}
+          </div>
+          <span class="muted">to</span>
+          <div class="field">
+            <label class="visually-hidden" for="term_end">Last day</label>
+            {{ control(form.term_end) }}
+            {{ error(form.term_end) }}
+          </div>
+          <span class="chip chip-primary" role="status" data-budget{% if not chip %} hidden{% endif %}>{{ chip or "" }}</span>
+        </div>
+      </div>
+      <hr />
+      <div class="form-row">
+        <span class="row-label" id="sources-label">Sources</span>
+        <div>
+          <div class="segmented" role="group" aria-labelledby="sources-label">
+            <button type="button" data-access="uploads" aria-pressed="{{ 'false' if is_web else 'true' }}">Uploads only</button>
+            <button type="button" data-access="web" aria-pressed="{{ 'true' if is_web else 'false' }}">External websites</button>
+          </div>
+          <input type="hidden" name="web_access" value="{{ 'web' if is_web else 'uploads' }}" />
+          {{ error(form.web_access) }}
+          <div class="sites" data-sites{% if not is_web %} hidden{% endif %}>
+            {% if form.open_mode %}
+            <p>Any website is allowed</p>
+            {% else %}
+            <fieldset class="site-checklist"{% if form.sites.errors %} aria-describedby="sites-error"{% endif %}>
+              <legend>Sites this subject may use (tick one or more)</legend>
+              {% for id, domain in form.sites.choices %}
+              <label><input type="checkbox" name="sites" value="{{ id }}"{% if id in (form.sites.data or []) %} checked{% endif %} />{{ domain }}</label>
+              {% else %}
+              <p class="muted">No sites on the allowed list yet</p>
+              {% endfor %}
+            </fieldset>
+            {% if form.sites.errors %}<p class="field-error" id="sites-error">{{ form.sites.errors[0] }}</p>{% endif %}
+            {% endif %}
+            <a href="{{ url_for('settings.show', _anchor='sites-title') }}">Edit allowed sites (Settings)</a>
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <span class="row-label" id="colour-label">Colour</span>
+        <div class="swatches" role="radiogroup" aria-labelledby="colour-label">
+          {% for value, name in form.colour.choices %}
+          <label class="swatch"><input type="radio" name="colour" value="{{ value }}"{% if form.colour.data == value %} checked{% endif %} /><span style="background: {{ value }}" aria-hidden="true"></span><span class="visually-hidden">{{ name }}</span></label>
+          {% endfor %}
+        </div>
+        {{ error(form.colour) }}
+      </div>
+      <hr />
+      <div class="modal-foot">
+        <span class="muted">You can change all of this later.</span>
+        <a class="btn" href="{{ url_for('subjects.index') }}">Cancel</a>
+        <button type="submit" class="btn btn-primary">{{ "Save changes" if editing else "Create subject" }}</button>
+      </div>
+    </form>
+  </div>
+</div>

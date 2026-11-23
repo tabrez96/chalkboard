@@ -1,0 +1,22 @@
+{% from "_icons.html" import icon %}
+{% macro subject_card(s) %}
+{% set times = times_of(s) %}
+{% set line = board_line(s.board, s.state_board, s.grade) %}
+<article class="card subject-card">
+  <header class="subject-head">
+    <span class="subject-tile" style="background: {{ s.colour }}" aria-hidden="true">{{ s.name[:1] }}</span>
+    <div class="subject-title">
+      <h2><a href="{{ url_for('subjects.open', subject_id=s.id) }}">{{ s.name }}</a></h2>
+      {% if line %}<p class="muted">{{ line }}</p>{% endif %}
+      <p class="muted">{{ schedule_line(times, s.class_minutes) }}</p>
+    </div>
+    <a class="icon-btn" href="{{ url_for('subjects.settings', subject_id=s.id) }}" aria-label="Subject settings for {{ s.name }}">{{ icon('gear', 18) }}</a>
+  </header>
+  <p class="muted subject-progress">No chapters yet</p>
+  <div class="subject-next">
+    <p class="muted">Next class</p>
+    <p><strong>Not planned yet</strong></p>
+    {% if not times %}<a href="{{ url_for('subjects.settings', subject_id=s.id) }}">Add class times</a>{% else %}<p class="muted">No lessons yet</p>{% endif %}
+  </div>
+</article>
+{% endmacro %}

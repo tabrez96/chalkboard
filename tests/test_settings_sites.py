@@ -1,7 +1,7 @@
 import pytest
 from sqlalchemy import func, select
 
-from chalkboard.models import AllowedSite, Teacher
+from chalkboard.models import AllowedSite, Subject, Teacher, subject_sites
 from chalkboard.passwords import hash_password
 from chalkboard.settings_page import SiteForm
 from tests.conftest import csrf_token, sign_in
@@ -138,3 +138,27 @@ def test_site_posts_need_csrf(signed_in, db_session):
             == 400
         )
     assert count(db_session) == 1
+
+
+def test_site_lists_subjects_using_it(signed_in, teacher, db_session):
+    add(signed_in, "openstax.org")
+    site = db_session.scalar(select(AllowedSite))
+    subject = Subject(
+        teacher_id=teacher.id,
+        name="Physics",
+        class_minutes=50,
+        colour="#0E7A64",
+        web_access="web",
+        sites=[site],
+    )
+    db_session.add(subject)
+    db_session.commit()
+    html = text(signed_in.get("/settings"))
+    row = html[html.index("openstax.org") :]
+    assert "Physics" in row
+    assert "Not used yet" not in row
+    signed_in.post(
+        f"/settings/sites/{site.id}/delete",
+        data={"csrf_token": csrf_token(signed_in, "/settings")},
+    )
+    assert db_session.scalar(select(func.count()).select_from(subject_sites)) == 0

@@ -35,8 +35,9 @@ def test_no_subject_shows_choose_and_hides_pages(client, teacher):
     signed_in(client, teacher)
     html = page(client, "/subjects")
     assert "Choose a subject" in html
+    nav = html[html.index('<nav id="sidebar-nav"') : html.index("</nav>")]
     for label in ("Today", "Course overview", "Chapters", "Sources", "Students"):
-        assert label not in html
+        assert label not in nav
 
 
 def test_sidebar_footer(client, teacher):
@@ -157,7 +158,13 @@ def test_subject_pages_render_with_subject(app, teacher):
         g.teacher = teacher
         html = render_template(
             "_sidebar.html",
-            subject=SimpleNamespace(id=1, name="Physics", colour="#0E7A64"),
+            subject=SimpleNamespace(
+                id=1,
+                name="Physics",
+                colour="#0E7A64",
+                grade="Grade 11",
+                class_minutes=60,
+            ),
             active=None,
         )
     assert "Physics" in html

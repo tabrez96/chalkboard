@@ -1,14 +1,36 @@
 {% extends "layouts/app.html" %}
+{% from "_icons.html" import icon %}
+{% from "subjects/_card.html" import subject_card %}
 {% block title %}Subjects{% endblock %}
-{% set active = "subjects" %}
 {% block main %}
-<header class="page-head">
-  <p class="eyebrow">Chalkboard</p>
-  <h1>Subjects</h1>
+<header class="page-head page-head-row">
+  <div>
+    <p class="eyebrow">Chalkboard</p>
+    <h1>{{ greeting if subjects else "Welcome" }}, {{ g.teacher.name }}</h1>
+  </div>
+  {% if subjects %}<a class="btn btn-primary" href="{{ url_for('subjects.new') }}">{{ icon('plus', 16) }}New subject</a>{% endif %}
 </header>
-<p>Signed in as {{ g.teacher.email }}.</p>
-<form method="post" action="{{ url_for('auth.logout') }}">
-  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-  <button type="submit" class="btn">Sign out</button>
-</form>
+{% if subjects %}
+<div class="subject-grid">
+  {% for s in subjects %}{{ subject_card(s) }}{% endfor %}
+</div>
+<section class="card coming-up" aria-labelledby="coming-up-title">
+  <div class="card-head">
+    <h2 id="coming-up-title">Coming up</h2>
+    <span class="muted">Next 7 days</span>
+  </div>
+  <p class="muted">No classes planned yet.</p>
+</section>
+{% else %}
+<section class="card empty-card" aria-labelledby="empty-title">
+  <span class="empty-tile" aria-hidden="true">{{ icon('grid', 24) }}</span>
+  <h2 id="empty-title">Start with your first subject</h2>
+  <p class="muted">Add a name, class length, board and class times. Sources come next.</p>
+  <a class="btn btn-primary" href="{{ url_for('subjects.new') }}">New subject</a>
+</section>
+{% endif %}
+{% if form %}{% include "subjects/_form.html" %}{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if form %}<script src="{{ url_for('static', filename='js/subject-form.js') }}" defer></script>{% endif %}
 {% endblock %}
