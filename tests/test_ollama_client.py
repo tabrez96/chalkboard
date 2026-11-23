@@ -162,6 +162,15 @@ def test_health_unreachable():
     assert html.state is HealthState.UNREACHABLE
 
 
+def test_health_undecodable_body_is_unreachable():
+    def garbled(request):
+        return httpx.Response(
+            200, headers={"Content-Encoding": "gzip"}, content=b"not gzip data"
+        )
+
+    assert make(garbled).health().state is HealthState.UNREACHABLE
+
+
 def test_health_malformed_model_list_is_unreachable():
     for models in (1, "qwen3.5:9b", {"name": "x"}):
         client = make(lambda r, m=models: httpx.Response(200, json={"models": m}))

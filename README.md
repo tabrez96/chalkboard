@@ -75,6 +75,7 @@ Prerequisites: Docker with Compose, uv 0.13.9, Node.js (for `npx`).
 - Tests: `docker compose up -d db`, then `uv run pytest` (creates and drops `chalkboard_test`; override the URL with `CHALKBOARD_TEST_DATABASE_URL`).
 - Create the first account: `uv run flask --app chalkboard create-teacher --email you@example.com --name "Your name"` (with Compose: `docker compose exec web flask --app chalkboard create-teacher ...`). It asks for the password twice.
 - Reset a password: `uv run flask --app chalkboard reset-password --email you@example.com`.
+- Run the worker locally: `uv run flask --app chalkboard worker` (Compose runs it as the `worker` service).
 - Fonts: Inter and Raleway are bundled in `chalkboard/static/fonts/`; see its `README.md` for the source packages and licences.
 - Format: `uv run ruff format . && npx prettier@3.10.1 --write .`
 - Checks (same as CI): `uv run ruff format --check . && uv run ruff check .` and `npx prettier@3.10.1 --check .`

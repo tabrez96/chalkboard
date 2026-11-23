@@ -16,7 +16,7 @@ services:
       retries: 30
   web:
     build: .
-    environment:
+    environment: &app-env
       CHALKBOARD_DATABASE_URL: postgresql+psycopg://chalkboard:${POSTGRES_PASSWORD:-chalkboard}@db:5432/chalkboard
       CHALKBOARD_SECRET_KEY: ${CHALKBOARD_SECRET_KEY:-dev-not-secret}
       CHALKBOARD_OLLAMA_URL: ${CHALKBOARD_OLLAMA_URL:-http://localhost:11434}
@@ -30,6 +30,19 @@ services:
     depends_on:
       db:
         condition: service_healthy
+  worker:
+    build: .
+    command: ["flask", "--app", "chalkboard", "worker"]
+    environment: *app-env
+    volumes:
+      - data:/app/data
+      - backups:/app/backups
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
 volumes:
   pgdata:
   data:

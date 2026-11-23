@@ -1,0 +1,9 @@
+<div class="job-status job-{{ job.state }}" id="job-{{ job.id }}" role="{{ 'alert' if job.state == 'failed' else 'status' }}"
+  {%- if active %} hx-get="{{ url_for('jobs.status', job_id=job.id) }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% if job.state == "queued" %}<span class="chip">Queued</span>
+  {% elif job.state == "running" %}<span>{{ job.step or "Working" }} · {{ job.progress }}%</span>
+    <progress max="100" value="{{ job.progress }}" aria-hidden="true"></progress>
+  {% elif job.state == "waiting_ollama" %}<span class="chip chip-flag">Saved · waiting for Ollama</span>
+  {% elif job.state == "done" %}<span class="chip chip-ok">Done</span>
+  {% else %}<span class="job-error">{{ job.error or "Something went wrong. Try again." }}</span>{% endif %}
+</div>

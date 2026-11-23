@@ -129,7 +129,7 @@ class OllamaClient:
         try:
             response = self.http.get("/api/tags", timeout=HEALTH_TIMEOUT)
             data = response.json() if response.is_success else None
-        except httpx.TransportError, ValueError:
+        except httpx.RequestError, ValueError:
             data = None
         if not isinstance(data, dict):
             return Health(HealthState.UNREACHABLE)
