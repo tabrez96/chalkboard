@@ -9,8 +9,8 @@ Status: **draft** (UX not approved yet), **approved**, **building** (a ticket fo
 | ID | Screen | Status | Purpose | Tickets | Updated |
 | --- | --- | --- | --- | --- | --- |
 | S01 | [Sign in](screens/S01-sign-in/screen.html) (+1 states) · [spec](screens/S01-sign-in/spec.md) | building | Sign in to the teacher's account | T-212, T-231 | 2026-11-22 |
-| S02 | [Subjects](screens/S02-subjects/screen.html) (+3 states) · [spec](screens/S02-subjects/spec.md) | building | See every subject at a glance and create a new one | T-216, T-221, T-226 | 2026-11-22 |
-| S03 | [Sources](screens/S03-sources/screen.html) (+3 states) · [spec](screens/S03-sources/spec.md) | building | Add, review and remove the sources a subject's plans are written from | T-219, T-220, T-221, T-230 | 2026-11-22 |
+| S02 | [Subjects](screens/S02-subjects/screen.html) (+3 states) · [spec](screens/S02-subjects/spec.md) | building | See every subject at a glance and create a new one | T-216, T-221, T-226, T-238 | 2026-11-22 |
+| S03 | [Sources](screens/S03-sources/screen.html) (+3 states) · [spec](screens/S03-sources/spec.md) | building | Add, review and remove the sources a subject's plans are written from | T-220, T-221, T-230, T-238 | 2026-11-22 |
 | S04 | [Overview](screens/S04-overview/screen.html) (+7 states) · [spec](screens/S04-overview/spec.md) | building |  | T-223, T-224, T-225 | 2026-11-22 |
 | S05 | [Chapters and classes](screens/S05-chapters/screen.html) (+1 states) · [spec](screens/S05-chapters/spec.md) | building | Write, approve and split each chapter into class-length lessons | T-225 | 2026-11-22 |
 | S06 | [Today](screens/S06-today/screen.html) (+6 states) · [spec](screens/S06-today/spec.md) | building | Teach today's lesson from its plan, with its sources and an assistant | T-226, T-227, T-228, T-229 | 2026-11-22 |

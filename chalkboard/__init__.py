@@ -11,6 +11,7 @@ from chalkboard import (
     jobs,
     settings_page,
     shell,
+    sources,  # noqa: F401  (registers the ingest_source job)
     students,
     subjects,
 )
