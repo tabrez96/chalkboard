@@ -1,0 +1,40 @@
+{% extends "layouts/app.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Sources{% endblock %}
+{% block main %}
+<header class="page-head page-head-row">
+  <div>
+    <p class="eyebrow">{{ subject.name }}</p>
+    <h1>Sources</h1>
+  </div>
+  {% if summary %}<span class="muted">{{ summary }}</span>{% endif %}
+</header>
+<div class="source-stack">
+  {% include "sources/_ollama_slot.html" %}
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+  {% if category == "error" %}
+  <p class="banner banner-error" role="alert">{{ message }}</p>
+  {% else %}
+  <p class="banner banner-info" role="status">{{ message }}</p>
+  {% endif %}
+  {% endfor %}
+  <div id="upload-message" class="banner banner-error" role="alert" hidden></div>
+  <section class="card add-bar" aria-label="Add sources">
+    <form id="upload-form" method="post" enctype="multipart/form-data" action="{{ url_for('sources.upload', subject_id=subject.id) }}" data-max-bytes="{{ max_bytes }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input id="upload-input" class="visually-hidden" type="file" name="file" multiple accept=".pdf,.docx,.txt,.md" />
+      <label for="upload-input" class="btn btn-primary">{{ icon('upload', 16) }}Upload files</label>
+      <span class="muted add-hint">PDF, Word, text or Markdown, up to 50 MB. You can also drop files anywhere on the page.</span>
+      <noscript><button type="submit" class="btn">Upload</button></noscript>
+      <p id="upload-progress" class="muted" role="status"></p>
+    </form>
+    <p class="sites-line">{{ sites_text }} · <a href="{{ change_url }}">Change</a></p>
+  </section>
+  {% include "sources/_live.html" %}
+</div>
+{% if confirm %}{% include "sources/_confirm.html" %}{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if confirm %}<script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
+{% else %}<script src="{{ url_for('static', filename='js/sources.js') }}" defer></script>{% endif %}
+{% endblock %}

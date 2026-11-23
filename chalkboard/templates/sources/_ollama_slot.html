@@ -1,0 +1,4 @@
+{% from "_ollama.html" import ollama_banner %}
+<div id="ollama-slot"{% if oob %} hx-swap-oob="true"{% endif %}>
+  {{ ollama_banner(g.teacher) }}
+</div>

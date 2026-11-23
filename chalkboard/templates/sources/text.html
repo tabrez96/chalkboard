@@ -1,0 +1,22 @@
+{% extends "layouts/app.html" %}
+{% block title %}{{ source.name }}{% endblock %}
+{% block main %}
+<header class="page-head">
+  <p class="eyebrow">{{ subject.name }} · Source {{ source.number }}</p>
+  <h1>{{ source.name }}</h1>
+  <p><a href="{{ url_for('sources.index', subject_id=subject.id) }}">All sources</a> · <span class="chip {{ status_tone(source) }}">{{ status_label(source) }}</span></p>
+</header>
+{% if chunks %}
+<ol class="passage-list">
+  {% for c in chunks %}
+  {% set pages = pages_label(c.page_start, c.page_end) %}
+  <li class="card passage">
+    <p class="muted passage-meta">Passage {{ c.position + 1 }}{% if pages %} · {{ pages }}{% endif %}</p>
+    <p class="passage-text">{{ c.text }}</p>
+  </li>
+  {% endfor %}
+</ol>
+{% else %}
+<p class="muted">No passages yet.</p>
+{% endif %}
+{% endblock %}

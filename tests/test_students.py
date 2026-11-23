@@ -181,7 +181,9 @@ def test_import_errors_save_nothing(signed_in, subject, db_session):
 
 
 def test_oversized_upload_refused(signed_in, subject):
-    assert upload(signed_in, subject, b"x" * (3 * 1024 * 1024)).status_code == 413
+    response = upload(signed_in, subject, b"x" * (3 * 1024 * 1024))
+    assert response.status_code == 400
+    assert "The file is larger than 1 MB" in text(response)
 
 
 def test_other_teachers_subject_404(signed_in, db_session, subject):

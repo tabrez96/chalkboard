@@ -1434,3 +1434,143 @@ a.btn {
 .job-error {
   color: var(--danger);
 }
+
+/* Sources page */
+.chip-danger {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.source-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.source-stack > .banner,
+.source-stack > p,
+#ollama-slot .banner {
+  margin: 0;
+}
+
+/* The slot's banner joins the stack; an empty slot adds no gap. */
+#ollama-slot {
+  display: contents;
+}
+
+#upload-input:focus-visible + label {
+  outline: 3px solid var(--yellow);
+  outline-offset: 1px;
+}
+
+.add-bar form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-bar form p {
+  margin: 0;
+}
+
+.add-hint {
+  font-size: 13px;
+}
+
+.sites-line {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.source-card {
+  padding: 0 12px;
+}
+
+.source-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.source-table th {
+  padding: 14px 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.source-table td {
+  height: 52px;
+  padding: 0 10px;
+  border-top: 1px solid var(--line);
+}
+
+.source-table a:not(.icon-btn) {
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.source-actions {
+  width: 48px;
+  text-align: right;
+}
+
+.source-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sources-empty {
+  max-width: none;
+  margin: 0;
+  min-height: calc(100vh - 330px);
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+body.is-dropping::after {
+  content: "Drop files to upload";
+  position: fixed;
+  inset: 12px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--primary);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--primary-soft) 90%, transparent);
+  color: var(--on-primary-soft);
+  font-size: 18px;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+.passage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.passage-meta {
+  margin: 0 0 6px;
+  font-size: 12px;
+}
+
+.passage-text {
+  margin: 0;
+  white-space: pre-wrap;
+}
