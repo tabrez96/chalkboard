@@ -16,9 +16,12 @@ from chalkboard.jobs import JobContext
 from chalkboard.models import Chunk, Source, Subject
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+# One source file plus the multipart overhead; Flask refuses bigger requests with 413.
+MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
 EMBED_BATCH = 16
 UNREADABLE = "Couldn't read the file"
 WAITING = "Saved · waiting for Ollama"
+UNSUPPORTED = "Upload a PDF, Word (.docx), text or Markdown file"
 
 
 class UploadError(ValueError):
@@ -49,7 +52,7 @@ def store_upload(
 ) -> Source:
     kind = kind_for(filename)
     if kind is None:
-        raise UploadError("Upload a PDF, Word (.docx), text or Markdown file")
+        raise UploadError(UNSUPPORTED)
     source = Source(
         subject_id=subject.id,
         number=next_number(session, subject),
@@ -98,6 +101,12 @@ def delete_source(session: Session, source: Source) -> None:
     session.delete(source)
     session.commit()
     path.unlink(missing_ok=True)
+
+
+def affected_plans(session: Session, source: Source) -> list[str]:
+    """Titles of approved plans that cite this source; their citations will show "source deleted"."""
+    # Plans don't exist yet; the plans ticket fills this in.
+    return []
 
 
 def status_label(source: Source) -> str:
