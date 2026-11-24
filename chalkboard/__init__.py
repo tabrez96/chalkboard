@@ -9,6 +9,7 @@ from chalkboard import (
     cli,
     health,
     jobs,
+    overview,  # noqa: F401  (registers the generate_overview job)
     settings_page,
     shell,
     sources,
