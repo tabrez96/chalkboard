@@ -93,6 +93,20 @@
     send(Array.from(input.files));
   });
 
+  var syllabusInput = document.getElementById("syllabus-input");
+  if (syllabusInput) {
+    syllabusInput.addEventListener("change", function () {
+      var f = syllabusInput.files[0];
+      if (!f) return;
+      if (pending > 0) {
+        syllabusInput.value = "";
+        return show("Wait for the upload to finish, then add the syllabus");
+      }
+      if (f.size > max) return show(f.name + ": The file is larger than 50 MB");
+      syllabusInput.form.submit();
+    });
+  }
+
   function hasFiles(e) {
     return e.dataTransfer && Array.from(e.dataTransfer.types).includes("Files");
   }

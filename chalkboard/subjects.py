@@ -9,6 +9,8 @@ from flask import (
     url_for,
 )
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField
+from sqlalchemy import select
 from wtforms import (
     IntegerField,
     RadioField,
@@ -24,12 +26,28 @@ from wtforms.validators import (
     Length,
     NumberRange,
     Optional,
+    Regexp,
 )
 
 from chalkboard.auth import current_teacher, home_url, teacher_select
 from chalkboard.db import get_session
-from chalkboard.models import SUBJECT_COLOURS, AllowedSite, ClassTime, Subject
+from chalkboard.extract import kind_for
+from chalkboard.models import (
+    SUBJECT_COLOURS,
+    AllowedSite,
+    ClassTime,
+    Source,
+    Subject,
+)
 from chalkboard.settings_page import strip
+from chalkboard.sources import MAX_UPLOAD_BYTES, UploadError
+from chalkboard.syllabus import (
+    PDF_ONLY,
+    current_syllabus,
+    unmark_syllabus,
+    upload_syllabus,
+    use_as_syllabus,
+)
 from chalkboard.timetable import WEEKDAYS, budget, days_summary, format_budget
 
 BOARD_CHOICES = [
@@ -88,6 +106,9 @@ class SubjectForm(FlaskForm):
     # Choices are the teacher's allowed sites, set by the view; an id from another account is an invalid choice.
     sites = SelectMultipleField(coerce=int)
     colour = RadioField(choices=[(c, COLOUR_NAMES[c]) for c in SUBJECT_COLOURS])
+    syllabus_file = FileField("Syllabus PDF")
+    # "" keeps what is there, "remove" unmarks, a number marks that source of this subject.
+    syllabus = StringField(default="", validators=[Regexp(r"^(remove|\d+)?$")])
 
     open_mode: bool = False
 
@@ -116,6 +137,14 @@ class SubjectForm(FlaskForm):
             fail(self.term_end, TERM_ORDER_MESSAGE)
         if self.web_access.data == "web" and not self.open_mode and not self.sites.data:
             fail(self.sites, SITES_MESSAGE)
+        upload = self.syllabus_file.data
+        if (
+            self.board.data != "none"
+            and upload
+            and getattr(upload, "filename", "")
+            and kind_for(upload.filename) != "pdf"
+        ):
+            fail(self.syllabus_file, PDF_ONLY)
         return ok and not found
 
 
@@ -126,8 +155,12 @@ def next_colour(used: list[str]) -> str:
     return SUBJECT_COLOURS[len(used) % len(SUBJECT_COLOURS)]
 
 
+def board_name(board: str, state_board: str | None) -> str:
+    return (state_board or "") if board == "state" else BOARD_LABELS.get(board, "")
+
+
 def board_line(board: str, state_board: str | None, grade: str) -> str:
-    label = state_board if board == "state" else BOARD_LABELS.get(board)
+    label = board_name(board, state_board)
     return " · ".join(part for part in (label, grade) if part)
 
 
@@ -161,6 +194,40 @@ def form_times(form: SubjectForm) -> dict[int, time]:
         if start is not None:
             times[day] = start
     return times
+
+
+def syllabus_display(choice: str, current_name: str, choices: dict[int, str]) -> str:
+    """The file name the Syllabus PDF field shows; "" shows the empty field."""
+    if choice == "remove":
+        return ""
+    if choice.isdigit():
+        return choices.get(int(choice), "")
+    return current_name
+
+
+def save_syllabus(
+    session, subject: Subject, form: SubjectForm, board_changed: bool
+) -> None:
+    if board_changed:
+        unmark_syllabus(session, subject)
+    if subject.board == "none":
+        return
+    upload = form.syllabus_file.data
+    if upload and upload.filename:
+        upload_syllabus(session, subject, upload.filename, upload.stream)
+        return
+    choice = form.syllabus.data or ""
+    if choice == "remove":
+        unmark_syllabus(session, subject)
+    elif choice.isdigit():
+        source = session.scalar(
+            select(Source).where(
+                Source.id == int(choice), Source.subject_id == subject.id
+            )
+        )
+        if source is None:
+            raise UploadError("Choose one of this subject's sources")
+        use_as_syllabus(session, subject, source)
 
 
 def own_subject(subject_id: int) -> Subject:
@@ -223,8 +290,39 @@ def render_index(form: SubjectForm | None = None, subject=None, status: int = 20
             form.class_minutes.data or 0,
         )
         chip = format_budget(b) if b is not None else None
+    session = get_session()
+    current = (
+        current_syllabus(session, subject)
+        if subject is not None and subject.board != "none"
+        else None
+    )
+    choices = (
+        [
+            s
+            for s in session.scalars(
+                select(Source)
+                .where(Source.subject_id == subject.id)
+                .order_by(Source.number)
+            )
+            if s is not current
+        ]
+        if subject is not None
+        else []
+    )
+    syllabus_name = (
+        syllabus_display(
+            form.syllabus.data or "",
+            current.name if current else "",
+            {s.id: s.name for s in choices},
+        )
+        if form is not None
+        else ""
+    )
     html = render_template(
         "subjects/index.html",
+        syllabus_name=syllabus_name,
+        syllabus_choices=choices,
+        max_bytes=MAX_UPLOAD_BYTES,
         active="subjects",
         subjects=subjects.all(),
         greeting=greeting(datetime.now().hour),
@@ -282,8 +380,17 @@ def create():
     if not form.validate_on_submit():
         return render_index(form, status=400)
     subject = Subject(teacher_id=current_teacher().id)
+    session = get_session()
     apply(form, subject)
-    get_session().commit()
+    session.flush()
+    try:
+        save_syllabus(session, subject, form, False)
+    except UploadError as exc:
+        # Nothing of this save is kept.
+        session.rollback()
+        form.syllabus_file.errors = [str(exc)]
+        return render_index(form, status=400)
+    session.commit()
     return redirect(url_for("subjects.index"))
 
 
@@ -299,8 +406,19 @@ def save_settings(subject_id: int):
     form = build_form(subject, posted=True)
     if not form.validate_on_submit():
         return render_index(form, subject=subject, status=400)
+    session = get_session()
+    old_board = (subject.board, subject.state_board)
     apply(form, subject)
-    get_session().commit()
+    session.flush()
+    board_changed = old_board != (subject.board, subject.state_board)
+    try:
+        save_syllabus(session, subject, form, board_changed)
+    except UploadError as exc:
+        # Nothing of this save is kept.
+        session.rollback()
+        form.syllabus_file.errors = [str(exc)]
+        return render_index(form, subject=own_subject(subject_id), status=400)
+    session.commit()
     return redirect(url_for("subjects.index"))
 
 
