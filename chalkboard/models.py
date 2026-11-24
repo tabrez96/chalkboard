@@ -428,3 +428,19 @@ class Approval(Base):
     approved_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class AddedChapter(Base):
+    __tablename__ = "added_chapters"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # A chapter the overview missed; listed after the overview's chapters, oldest first. Key "a<id>".
+    title: Mapped[str] = mapped_column(String(200))
+    hours: Mapped[Decimal | None] = mapped_column(Numeric(4, 1))
+    notes: Mapped[str] = mapped_column(Text, server_default="")
