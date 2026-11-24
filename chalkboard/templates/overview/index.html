@@ -115,7 +115,7 @@
           <li class="chapter-row">
             <div class="chapter-head">
               <div>
-                <p class="row-over">Chapter {{ row.number }}{% if row.item.unit_number %} <span class="chip chip-primary">Syllabus · Unit {{ row.item.unit_number }}</span>{% endif %}</p>
+                <p class="row-over">Chapter {{ row.number }}{% if follows_board and row.item.unit_number %}{% if row.item.unit_number in unit_ids %} <a class="chip chip-primary unit-cite" href="{{ url_for('overview.show', subject_id=subject.id, version=version.number, unit=unit_ids[row.item.unit_number]) }}#passage-panel" data-panel="{{ url_for('overview.unit_text', subject_id=subject.id, unit_id=unit_ids[row.item.unit_number]) }}" aria-label="Syllabus unit {{ row.item.unit_number }}, show its text">Syllabus · Unit {{ row.item.unit_number }}</a>{% else %} <span class="chip chip-primary">Syllabus · Unit {{ row.item.unit_number }}</span>{% endif %}{% endif %}</p>
                 <h2 class="chapter-title">{{ row.item.title }}</h2>
               </div>
               <div class="chapter-hours">
@@ -155,9 +155,54 @@
       {% endif %}
     </div>
     <aside class="overview-side">
-      <div id="passage-panel" class="card passage-panel" tabindex="-1" aria-label="Passage"{% if not passage %} hidden{% endif %}>
-        {% if passage %}{% include "overview/_passage.html" %}{% endif %}
+      <div id="passage-panel" class="card passage-panel" tabindex="-1" aria-label="Passage"{% if not (passage or unit_panel) %} hidden{% endif %}>
+        {% if passage %}{% include "overview/_passage.html" %}{% elif unit_panel %}{% include "overview/_unit.html" %}{% endif %}
       </div>
+      {% if coverage %}
+      <section class="card coverage-card" aria-labelledby="coverage-title">
+        <div class="coverage-head">
+          <h2 id="coverage-title">Coverage</h2>
+          <span class="chip {{ 'chip-flag' if coverage_flag else 'chip-ok' }}">{{ coverage_chip }}</span>
+        </div>
+        <ol class="coverage-list">
+          {% for r in coverage %}
+          {% if r.uncovered %}
+          <li class="coverage-gap" id="unit-{{ r.unit.id }}">
+            <p class="row-over">Unit {{ r.unit.number }} <span class="chip chip-flag">Not covered</span></p>
+            <p class="coverage-name"><strong>{{ r.unit.title }}</strong></p>
+            {% if not read_only %}
+            <div class="coverage-actions">
+              <a class="btn" href="{{ url_for('overview.show', subject_id=subject.id, add=r.unit.id) ~ '#change' }}">Ask to add it</a>
+              <form method="post" action="{{ url_for('overview.other_term', subject_id=subject.id, unit_id=r.unit.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <input type="hidden" name="other_term" value="1" />
+                <button type="submit" class="btn btn-ghost">Not this term</button>
+              </form>
+            </div>
+            {% endif %}
+          </li>
+          {% else %}
+          <li class="coverage-row" id="unit-{{ r.unit.id }}">
+            <span class="unit-number">{{ r.unit.number }}</span>
+            <span class="coverage-name">{{ r.unit.title }}</span>
+            {% if r.chapters %}
+            <span class="chip chip-primary">{% for n in r.chapters %}Ch {{ n }}{% if not loop.last %}, {% endif %}{% endfor %}</span>
+            {% else %}
+            <span class="chip">Not this term</span>
+            {% if not read_only %}
+            <form method="post" action="{{ url_for('overview.other_term', subject_id=subject.id, unit_id=r.unit.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <input type="hidden" name="other_term" value="0" />
+              <button type="submit" class="btn btn-ghost">Undo</button>
+            </form>
+            {% endif %}
+            {% endif %}
+          </li>
+          {% endif %}
+          {% endfor %}
+        </ol>
+      </section>
+      {% endif %}
     </aside>
   </div>
   {% endif %}

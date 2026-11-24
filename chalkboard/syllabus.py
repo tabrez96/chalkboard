@@ -12,7 +12,7 @@ from chalkboard.ai import model_client
 from chalkboard.ai.base import FormatMismatch, LLMClient
 from chalkboard.extract import ExtractError, extract, kind_for
 from chalkboard.jobs import JobContext
-from chalkboard.models import Job, Source, Subject, SyllabusUnit
+from chalkboard.models import Chunk, Job, Source, Subject, SyllabusUnit
 from chalkboard.sources import (
     UNREADABLE,
     UploadError,
@@ -223,6 +223,40 @@ def detect_units(ctx: JobContext) -> None:
     if locked is None or not locked.is_syllabus or has_typed_units(session, source.id):
         return
     replace_units(session, source.id, units, typed=False)
+
+
+def subject_unit(
+    session: Session, subject: Subject, unit_id: int
+) -> SyllabusUnit | None:
+    """The unit, only when it belongs to the subject's current syllabus."""
+    return session.scalar(
+        select(SyllabusUnit)
+        .join(Source, Source.id == SyllabusUnit.source_id)
+        .where(
+            SyllabusUnit.id == unit_id,
+            Source.subject_id == subject.id,
+            Source.is_syllabus,
+        )
+    )
+
+
+def set_other_term(session: Session, unit: SyllabusUnit, value: bool) -> None:
+    """The caller commits."""
+    unit.other_term = value
+
+
+def unit_passage(session: Session, unit: SyllabusUnit) -> Chunk | None:
+    """The first syllabus passage that names the unit's title, in syllabus order."""
+    escaped = re.sub(r"([\\%_])", r"\\\1", unit.title)
+    return session.scalar(
+        select(Chunk)
+        .where(
+            Chunk.source_id == unit.source_id,
+            Chunk.text.ilike(f"%{escaped}%", escape="\\"),
+        )
+        .order_by(Chunk.position)
+        .limit(1)
+    )
 
 
 def current_syllabus(session: Session, subject: Subject) -> Source | None:

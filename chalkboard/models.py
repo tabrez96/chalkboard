@@ -272,6 +272,8 @@ class SyllabusUnit(Base):
     title: Mapped[str] = mapped_column(String(200))
     # Typed by the teacher; detection never replaces typed units.
     typed: Mapped[bool] = mapped_column(server_default=sa.false())
+    # Taught in another term: listed on S04 Coverage as "Not this term" and never flagged.
+    other_term: Mapped[bool] = mapped_column(server_default=sa.false())
 
     __table_args__ = (UniqueConstraint("source_id", "position"),)
 

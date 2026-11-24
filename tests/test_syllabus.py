@@ -18,11 +18,15 @@ from chalkboard.syllabus import (
     llm_units,
     parse_units,
     roman_to_int,
+    set_other_term,
+    subject_unit,
     syllabus_status,
     type_units,
+    unit_passage,
     unit_rows,
     use_as_syllabus,
 )
+from tests.plan_fixtures import add_source
 from tests.test_sources import refresh, upload
 
 CBSE = """Physics Class XI
@@ -408,3 +412,60 @@ def test_stale_session_mark_ends_with_that_source_as_syllabus(
         ).all()
     )
     assert flags == {first.id: True, second.id: False}
+
+
+def unit_with_title(db_session, source_id, title, position=0):
+    unit = SyllabusUnit(source_id=source_id, position=position, number=1, title=title)
+    db_session.add(unit)
+    db_session.flush()
+    return unit
+
+
+def test_unit_passage_finds_first_matching_chunk(db_session, subject):
+    chunks = add_source(
+        db_session,
+        subject,
+        1,
+        ["Intro", "Unit 2 Energy and work", "Energy again", "50 percent"],
+        is_syllabus=True,
+    )
+    source_id = chunks[0].source_id
+    assert (
+        unit_passage(db_session, unit_with_title(db_session, source_id, "Energy"))
+        == chunks[1]
+    )
+    assert (
+        unit_passage(db_session, unit_with_title(db_session, source_id, "Optics", 1))
+        is None
+    )
+    assert (
+        unit_passage(db_session, unit_with_title(db_session, source_id, "50%_x", 2))
+        is None
+    )
+
+
+def test_subject_unit_scoped_to_current_syllabus(db_session, subject):
+    source_id = add_source(db_session, subject, 1, ["Unit 1 Motion"], is_syllabus=True)[
+        0
+    ].source_id
+    unit = unit_with_title(db_session, source_id, "Motion")
+    other = Subject(
+        teacher_id=subject.teacher_id, name="Maths", class_minutes=60, colour="#0E7A64"
+    )
+    db_session.add(other)
+    db_session.flush()
+    assert subject_unit(db_session, subject, unit.id) == unit
+    assert subject_unit(db_session, other, unit.id) is None
+    db_session.get(Source, source_id).is_syllabus = False
+    db_session.flush()
+    assert subject_unit(db_session, subject, unit.id) is None
+
+
+def test_set_other_term(db_session, subject):
+    source_id = add_source(db_session, subject, 1, ["Unit 1 Motion"], is_syllabus=True)[
+        0
+    ].source_id
+    unit = unit_with_title(db_session, source_id, "Motion")
+    assert unit.other_term is False
+    set_other_term(db_session, unit, True)
+    assert unit.other_term is True

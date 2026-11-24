@@ -242,7 +242,7 @@ def generate_overview(ctx: JobContext) -> None:
         if parent is None:
             raise jobs.JobFailed(PARENT_GONE)
     change_request = ctx.payload.get("change_request", "") if parent else ""
-    syllabus = current_syllabus(session, subject)
+    syllabus = current_syllabus(session, subject) if subject.board != "none" else None
     units = unit_rows(session, syllabus.id) if syllabus else []
     unit_titles = {u.number: u.title for u in units}
     b = budget(
