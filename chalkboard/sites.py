@@ -1,4 +1,4 @@
-"""Allowed websites: the outbound guard and page saving use `may_fetch`; DNS-to-private-address checks belong to the page-fetch ticket."""
+"""Allowed websites: the outbound guard and page saving use `may_fetch`; DNS-to-private-address checks live in `net.fetch_page`."""
 
 import ipaddress
 import re
@@ -83,6 +83,42 @@ def may_fetch(url: str, access: SiteAccess) -> bool:
     if access.open_mode:
         return True
     return any(host_matches(host, d) for d in access.domains)
+
+
+def site_access(subject, teacher) -> SiteAccess:
+    """What this subject may fetch now. Uploads-only subjects may fetch nothing."""
+    if subject.web_access != "web":
+        return SiteAccess(open_mode=False, domains=frozenset())
+    return SiteAccess(
+        open_mode=teacher.allow_any_site,
+        domains=frozenset(s.domain for s in subject.sites),
+    )
+
+
+def can_save_pages(access: SiteAccess) -> bool:
+    return access.open_mode or bool(access.domains)
+
+
+def on_allowed_list(url: str, teacher) -> bool:
+    """True when the link's host is one of the teacher's allowed sites (ticked for this subject or not)."""
+    from sqlalchemy import select
+
+    from chalkboard.db import get_session
+    from chalkboard.models import AllowedSite
+
+    u = _parse(url)
+    if u is None or not u.host:
+        return False
+    host = _host(u)
+    domains = get_session().scalars(
+        select(AllowedSite.domain).where(AllowedSite.teacher_id == teacher.id)
+    )
+    return any(host_matches(host, d) for d in domains)
+
+
+def page_origin(url: str) -> str:
+    """The From value of a saved page: its host without a leading www."""
+    return _host(_parse(url)).removeprefix("www.")
 
 
 def subjects_by_site(teacher) -> dict[int, list[str]]:

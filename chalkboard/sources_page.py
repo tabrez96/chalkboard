@@ -1,4 +1,4 @@
-"""The Sources page: upload, source table, extracted text and delete."""
+"""The Sources page: upload, save a web page, source table, extracted text and delete."""
 
 from flask import (
     Blueprint,
@@ -19,6 +19,14 @@ from chalkboard.auth import current_teacher
 from chalkboard.db import get_session
 from chalkboard.extract import kind_for
 from chalkboard.models import Chunk, Source
+from chalkboard.sites import (
+    SiteAccess,
+    can_save_pages,
+    may_fetch,
+    on_allowed_list,
+    page_origin,
+    site_access,
+)
 from chalkboard.sources import (
     MAX_UPLOAD_BYTES,
     UNSUPPORTED,
@@ -27,12 +35,15 @@ from chalkboard.sources import (
     clean_name,
     delete_source,
     status_label,
+    store_page,
     store_upload,
 )
 from chalkboard.subjects import own_subject
 
 bp = Blueprint("sources", __name__, url_prefix="/subjects/<int:subject_id>/sources")
 bp.add_app_template_global(status_label)
+
+LINK_MESSAGE = "Paste a page link, like https://openstax.org/books/physics"
 
 
 def sites_line(web_access: str, domains: list[str], open_mode: bool) -> tuple[str, str]:
@@ -92,7 +103,12 @@ def back(subject):
     return redirect(url_for("sources.index", subject_id=subject.id), 303)
 
 
-def page_context(subject, confirm: Source | None = None) -> dict:
+def page_context(
+    subject,
+    confirm: Source | None = None,
+    page_error: dict | None = None,
+    link_value: str = "",
+) -> dict:
     rows = subject_sources(subject)
     line, change = sites_line(
         subject.web_access,
@@ -117,6 +133,9 @@ def page_context(subject, confirm: Source | None = None) -> dict:
         "confirm": confirm,
         "affected": affected_plans(get_session(), confirm) if confirm else [],
         "max_bytes": MAX_UPLOAD_BYTES,
+        "can_save_pages": can_save_pages(site_access(subject, current_teacher())),
+        "page_error": page_error,
+        "link_value": link_value,
     }
 
 
@@ -153,6 +172,43 @@ def upload(subject_id: int):
         except UploadError as exc:
             flash(f"{clean_name(f.filename)}: {exc}", "error")
     return back(subject)
+
+
+def link_error(subject, url: str) -> dict:
+    """What to tell the teacher about a link `may_fetch` refused for this subject."""
+    if not may_fetch(url, SiteAccess(open_mode=True, domains=frozenset())):
+        return {"text": LINK_MESSAGE}
+    text = f"This site isn't chosen for {subject.name}"
+    if on_allowed_list(url, current_teacher()):
+        return {
+            "text": text,
+            "link": url_for("subjects.settings", subject_id=subject.id),
+            "link_text": "Change in subject settings",
+        }
+    return {
+        "text": text,
+        "link": url_for("settings.show"),
+        "link_text": "Add it to the allowed sites in Settings",
+    }
+
+
+@bp.post("/save-page")
+def save_page(subject_id: int):
+    subject = own_subject(subject_id)
+    if not FlaskForm().validate_on_submit():
+        abort(400)
+    access = site_access(subject, current_teacher())
+    if not can_save_pages(access):
+        abort(400)
+    url = request.form.get("url", "").strip()
+    if url and "://" not in url:
+        url = "https://" + url
+    if may_fetch(url, access):
+        store_page(get_session(), subject, url)
+        flash(f"Saving {page_origin(url)}")
+        return back(subject)
+    context = page_context(subject, page_error=link_error(subject, url), link_value=url)
+    return render_template("sources/index.html", **context), 422
 
 
 @bp.app_errorhandler(RequestEntityTooLarge)

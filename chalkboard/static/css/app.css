@@ -1470,6 +1470,38 @@ a.btn {
   gap: 12px;
 }
 
+.add-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.add-bar .page-form {
+  flex: 1;
+  flex-wrap: nowrap;
+  margin: 0;
+}
+
+.page-form input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.page-form input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.add-bar .field-error {
+  margin: 8px 0 0;
+}
+
 .add-bar form p {
   margin: 0;
 }

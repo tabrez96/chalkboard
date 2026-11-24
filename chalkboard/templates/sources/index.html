@@ -20,14 +20,26 @@
   {% endfor %}
   <div id="upload-message" class="banner banner-error" role="alert" hidden></div>
   <section class="card add-bar" aria-label="Add sources">
-    <form id="upload-form" method="post" enctype="multipart/form-data" action="{{ url_for('sources.upload', subject_id=subject.id) }}" data-max-bytes="{{ max_bytes }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-      <input id="upload-input" class="visually-hidden" type="file" name="file" multiple accept=".pdf,.docx,.txt,.md" />
-      <label for="upload-input" class="btn btn-primary">{{ icon('upload', 16) }}Upload files</label>
-      <span class="muted add-hint">PDF, Word, text or Markdown, up to 50 MB. You can also drop files anywhere on the page.</span>
-      <noscript><button type="submit" class="btn">Upload</button></noscript>
-      <p id="upload-progress" class="muted" role="status"></p>
-    </form>
+    <div class="add-row">
+      <form id="upload-form" method="post" enctype="multipart/form-data" action="{{ url_for('sources.upload', subject_id=subject.id) }}" data-max-bytes="{{ max_bytes }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input id="upload-input" class="visually-hidden" type="file" name="file" multiple accept=".pdf,.docx,.txt,.md" />
+        <label for="upload-input" class="btn btn-primary">{{ icon('upload', 16) }}Upload files</label>
+        {% if not can_save_pages %}<span class="muted add-hint">PDF, Word, text or Markdown, up to 50 MB. You can also drop files anywhere on the page.</span>{% endif %}
+        <noscript><button type="submit" class="btn">Upload</button></noscript>
+        <p id="upload-progress" class="muted" role="status"></p>
+      </form>
+      {% if can_save_pages %}
+      <span class="muted">or</span>
+      <form id="page-form" class="page-form" method="post" action="{{ url_for('sources.save_page', subject_id=subject.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <label for="page-url" class="visually-hidden">Page link</label>
+        <input id="page-url" name="url" type="text" inputmode="url" autocomplete="off" placeholder="Paste a page link" value="{{ link_value }}" required{% if page_error %} aria-invalid="true" aria-describedby="page-error"{% endif %} />
+        <button type="submit" class="btn">Save page</button>
+      </form>
+      {% endif %}
+    </div>
+    {% if page_error %}<p id="page-error" class="field-error" role="alert">{{ page_error.text }}{% if page_error.link %} · <a href="{{ page_error.link }}">{{ page_error.link_text }}</a>{% endif %}</p>{% endif %}
     <p class="sites-line">{{ sites_text }} · <a href="{{ change_url }}">Change</a></p>
   </section>
   {% include "sources/_live.html" %}
