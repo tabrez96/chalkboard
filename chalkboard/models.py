@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from decimal import Decimal
 
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
@@ -8,6 +9,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Numeric,
     SmallInteger,
     String,
     Table,
@@ -297,4 +299,130 @@ class Chunk(Base):
             postgresql_using="hnsw",
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
+    )
+
+
+PLAN_KINDS = ("overview", "chapter")
+ITEM_KINDS = ("chapter", "section", "lesson")
+
+
+class PlanVersion(Base):
+    __tablename__ = "plan_versions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    kind: Mapped[str] = mapped_column(String(8))
+    # Identifies the chapter a chapter draft belongs to; None for the overview.
+    chapter_key: Mapped[str | None] = mapped_column(String(40))
+    # 1, 2, … per (subject, kind, chapter_key).
+    number: Mapped[int]
+    # CASCADE, not SET NULL: a SET NULL would be an UPDATE, which the content trigger rejects.
+    parent_version_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plan_versions.id", ondelete="CASCADE")
+    )
+    # The teacher's request text that produced this version; "" for a first draft.
+    change_request: Mapped[str] = mapped_column(Text, server_default="")
+    # The job that wrote it. The only column that may change, and only to NULL (job deleted).
+    status_job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL")
+    )
+    items: Mapped[list[PlanItem]] = relationship(
+        order_by="PlanItem.ordinal", cascade="all, delete-orphan", passive_deletes=True
+    )
+    sentences: Mapped[list[Sentence]] = relationship(
+        order_by="Sentence.ordinal", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('overview', 'chapter')", name="kind"),
+        CheckConstraint(
+            "(kind = 'overview') = (chapter_key IS NULL)", name="chapter_key"
+        ),
+        CheckConstraint("number >= 1", name="number"),
+        UniqueConstraint(
+            "subject_id",
+            "kind",
+            "chapter_key",
+            "number",
+            postgresql_nulls_not_distinct=True,
+        ),
+    )
+
+
+class PlanItem(Base):
+    __tablename__ = "plan_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("plan_versions.id", ondelete="CASCADE"), index=True
+    )
+    # 0-based order within the version.
+    ordinal: Mapped[int]
+    kind: Mapped[str] = mapped_column(String(7))
+    title: Mapped[str] = mapped_column(String(200))
+    hours_estimate: Mapped[Decimal | None] = mapped_column(Numeric(4, 1))
+    unit_number: Mapped[int | None]
+    notes: Mapped[str] = mapped_column(Text, server_default="")
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('chapter', 'section', 'lesson')", name="kind"),
+        UniqueConstraint("version_id", "ordinal"),
+    )
+
+
+class Sentence(Base):
+    __tablename__ = "sentences"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("plan_versions.id", ondelete="CASCADE"), index=True
+    )
+    item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("plan_items.id", ondelete="CASCADE")
+    )
+    # 0-based order within the version.
+    ordinal: Mapped[int]
+    text: Mapped[str] = mapped_column(Text)
+    # Set by the checker: a cited passage does not support the sentence ("Check this").
+    check_flag: Mapped[bool] = mapped_column(server_default=sa.false())
+    check_reason: Mapped[str | None] = mapped_column(Text)
+    citations: Mapped[list[Citation]] = relationship(
+        order_by="Citation.id", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+    __table_args__ = (UniqueConstraint("version_id", "ordinal"),)
+
+
+class Citation(Base):
+    __tablename__ = "citations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    sentence_id: Mapped[int] = mapped_column(
+        ForeignKey("sentences.id", ondelete="CASCADE"), index=True
+    )
+    # None once the source is deleted; shown as "source deleted".
+    chunk_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chunks.id", ondelete="SET NULL"), index=True
+    )
+    # Kept so a deleted source can still be named.
+    source_number: Mapped[int]
+
+    __table_args__ = (UniqueConstraint("sentence_id", "chunk_id"),)
+
+
+class Approval(Base):
+    __tablename__ = "approvals"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    # A separate row, so versions stay immutable.
+    version_id: Mapped[int] = mapped_column(
+        ForeignKey("plan_versions.id", ondelete="CASCADE"), unique=True
+    )
+    approved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
     )
