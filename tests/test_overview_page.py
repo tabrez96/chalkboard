@@ -25,9 +25,12 @@ from chalkboard.models import (
 from chalkboard.overview_page import (
     NOT_LATEST,
     OLLAMA_DOWN,
+    add_prefill,
     bar_parts,
     check_banner,
     classes_label,
+    coverage_chip,
+    coverage_rows,
     flagged_sources,
     format_hours,
     progress_steps,
@@ -445,3 +448,136 @@ def test_sidebar_links_overview(signed_in, sourced):
     assert re.search(
         rf'href="/subjects/{sourced.id}/overview"[^>]*aria-current="page"', page
     )
+
+
+def unit_by_title(db_session, title):
+    return db_session.scalars(
+        select(SyllabusUnit).where(SyllabusUnit.title == title)
+    ).one()
+
+
+def fake_units(*numbers):
+    return [
+        SimpleNamespace(number=n, position=i, other_term=False)
+        for i, n in enumerate(numbers)
+    ]
+
+
+def fake_items(*numbers):
+    return [SimpleNamespace(unit_number=n) for n in numbers]
+
+
+def test_coverage_rows_and_chip():
+    units = fake_units(1, 2, 3)
+    rows = coverage_rows(units, fake_items(1, 1, 3))
+    assert [r.chapters for r in rows] == [[1, 2], [], [3]]
+    assert [r.uncovered for r in rows] == [False, True, False]
+    assert coverage_chip(rows) == "2 of 3 units"
+    units[1].other_term = True
+    assert not rows[1].uncovered
+
+
+def test_add_prefill():
+    units = fake_units(1, 2, 3)
+    assert (
+        add_prefill(units[0], units, fake_items(2, 3))
+        == "Add a chapter for Unit 1 before Chapter 1"
+    )
+    assert (
+        add_prefill(units[2], units, fake_items(1, 2))
+        == "Add a chapter for Unit 3 after Chapter 2"
+    )
+    assert add_prefill(units[0], units, []) == "Add a chapter for Unit 1"
+
+
+def test_coverage_flags_uncovered_unit(signed_in, db_session, sourced):
+    make_version(db_session, sourced)
+    page = html(signed_in, url(sourced))
+    assert "Coverage" in page and "1 of 2 units" in page
+    assert re.search(r"Not covered</span>\s*</p>\s*<p[^>]*><strong>Energy", page)
+    assert "Ask to add it" in page and "Not this term" in page
+    assert "Ch 1" in page
+
+
+def test_ask_to_add_prefills_request(signed_in, db_session, sourced):
+    make_version(db_session, sourced)
+    energy = unit_by_title(db_session, "Energy")
+    page = html(signed_in, url(sourced, f"?add={energy.id}"))
+    assert "Add a chapter for Unit 2 after Chapter 1" in page
+
+
+def test_not_this_term_persists_and_undo(signed_in, db_session, sourced):
+    make_version(db_session, sourced)
+    energy = unit_by_title(db_session, "Energy")
+    r = post(signed_in, sourced, f"/units/{energy.id}/term", other_term="1")
+    assert r.status_code == 303
+    db_session.refresh(energy)
+    assert energy.other_term is True
+    page = html(signed_in, url(sourced))
+    assert "Not covered" not in page
+    assert '<span class="chip">Not this term</span>' in page
+    assert "1 of 2 units" in page
+    assert re.search(r'chip chip-flag">1 of 2', page) is None
+    post(signed_in, sourced, f"/units/{energy.id}/term", other_term="0")
+    db_session.refresh(energy)
+    assert energy.other_term is False
+    assert "Not covered" in html(signed_in, url(sourced))
+
+
+def test_not_this_term_requires_csrf_and_own_unit(signed_in, db_session, sourced):
+    energy = unit_by_title(db_session, "Energy")
+    r = signed_in.post(
+        url(sourced, f"/units/{energy.id}/term"), data={"other_term": "1"}
+    )
+    assert r.status_code == 400
+    other = Subject(
+        teacher_id=sourced.teacher_id, name="Maths", class_minutes=60, colour="#0E7A64"
+    )
+    db_session.add(other)
+    db_session.commit()
+    assert (
+        post(signed_in, other, f"/units/{energy.id}/term", other_term="1").status_code
+        == 404
+    )
+
+
+def test_unit_chip_opens_unit_text(signed_in, db_session, sourced):
+    make_version(db_session, sourced)
+    motion = unit_by_title(db_session, "Motion")
+    page = html(signed_in, url(sourced))
+    assert 'class="chip chip-primary unit-cite"' in page
+    assert f'data-panel="{url(sourced, f"/units/{motion.id}")}"' in page
+    panel = html(signed_in, url(sourced, f"/units/{motion.id}"))
+    assert (
+        "Syllabus · Unit 1" in panel and "Motion" in panel and "source-1.txt" in panel
+    )
+    opened = html(signed_in, url(sourced, f"?unit={motion.id}"))
+    assert re.search(r'id="passage-panel"[^>]*>', opened).group(0).count("hidden") == 0
+    assert "Unit I Motion" in opened
+
+
+def test_no_syllabus_state(signed_in, db_session, subject):
+    add_source(db_session, subject, 1, PASSAGES)
+    db_session.commit()
+    make_version(db_session, subject)
+    page = html(signed_in, url(subject))
+    assert "Not added yet" in page and "Add a syllabus" in page
+    assert "Coverage" not in page and "unit-cite" not in page
+
+
+def test_board_none_state(signed_in, db_session, sourced):
+    make_version(db_session, sourced)
+    motion = unit_by_title(db_session, "Motion")
+    sourced.board = "none"
+    db_session.commit()
+    page = html(signed_in, url(sourced))
+    assert "Syllabus" not in page and "Coverage" not in page
+    assert signed_in.get(url(sourced, f"/units/{motion.id}")).status_code == 404
+
+
+def test_read_only_version_hides_coverage_actions(signed_in, db_session, sourced):
+    make_version(db_session, sourced)
+    make_version(db_session, sourced)
+    page = html(signed_in, url(sourced, "?version=1"))
+    assert "Coverage" in page and "Not covered" in page
+    assert "Ask to add it" not in page and "Not this term" not in page

@@ -157,3 +157,33 @@ def test_0010_downgrades_and_upgrades():
         with admin.connect() as conn:
             conn.execute(text(f'DROP DATABASE IF EXISTS "{url.database}" WITH (FORCE)'))
         admin.dispose()
+
+
+def test_0011_downgrades_and_upgrades():
+    base = make_url(TEST_DATABASE_URL)
+    url = base.set(database=base.database.removesuffix("_test") + "_migrations_test")
+    url_text = url.render_as_string(hide_password=False)
+    recreate_database(url_text)
+    run_migrations(url_text)
+    cfg = Config(str(Path(__file__).resolve().parent.parent / "alembic.ini"))
+    cfg.attributes["database_url"] = url_text
+    engine = create_engine(url)
+    query = text(
+        "SELECT 1 FROM information_schema.columns "
+        "WHERE table_name = 'syllabus_units' AND column_name = 'other_term'"
+    )
+    try:
+        command.downgrade(cfg, "0010")
+        with engine.connect() as conn:
+            assert not conn.execute(query).all()
+        command.upgrade(cfg, "head")
+        with engine.connect() as conn:
+            assert conn.execute(query).all()
+    finally:
+        engine.dispose()
+        admin = create_engine(
+            url.set(database="postgres"), isolation_level="AUTOCOMMIT"
+        )
+        with admin.connect() as conn:
+            conn.execute(text(f'DROP DATABASE IF EXISTS "{url.database}" WITH (FORCE)'))
+        admin.dispose()

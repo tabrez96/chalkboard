@@ -1977,3 +1977,75 @@ body.is-dropping::after {
   gap: 8px;
   padding: 6px 0;
 }
+
+.coverage-card {
+  margin-top: 14px;
+}
+
+.coverage-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.coverage-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.coverage-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.coverage-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+.coverage-row .coverage-name {
+  flex: 1;
+}
+
+.unit-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.coverage-gap {
+  padding: 12px;
+  border: 1px solid var(--flag-line);
+  border-radius: 8px;
+  background: var(--flag-soft);
+  margin-bottom: 8px;
+}
+
+.coverage-gap p {
+  margin: 0 0 6px;
+}
+
+.coverage-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.coverage-actions form {
+  margin: 0;
+}
+
+a.unit-cite {
+  text-decoration: none;
+  cursor: pointer;
+}

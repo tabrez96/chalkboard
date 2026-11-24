@@ -115,6 +115,13 @@ def run_overview(app, db_session, subject, parent=None, change=""):
     return job
 
 
+def outline_prompt(server) -> str:
+    """The outline generate call; embed calls are recorded in server.calls too."""
+    return next(
+        c[0] for c in server.calls if c[0].startswith("Plan the chapters of a course")
+    )
+
+
 def versions(db_session, subject):
     return sorted(
         db_session.scalars(
@@ -378,3 +385,43 @@ def test_rerun_after_store_writes_nothing(app, db_session, server, sourced):
         generate_overview(jobs.JobContext(session, row, teacher, row.claims))
     db_session.expire_all()
     assert len(versions(db_session, sourced)) == 1
+
+
+def test_outline_prompt_lists_units_in_syllabus_order(app, db_session, server, sourced):
+    server.generated = script(3, 1)
+    run_overview(app, db_session, sourced)
+    prompt = outline_prompt(server)
+    assert "Unit 1: Motion\nUnit 2: Energy" in prompt
+    assert "Follow these syllabus units in this order" in prompt
+
+
+def test_chapters_stored_in_unit_order(app, db_session, server, sourced):
+    server.generated = [outline(2, 3, units=(2, 1)), *script(2, 3)[1:]]
+    run_overview(app, db_session, sourced)
+    [version] = versions(db_session, sourced)
+    assert [(i.title, i.unit_number) for i in version.items] == [
+        ("Chapter 2", 1),
+        ("Chapter 1", 2),
+    ]
+
+
+def test_without_syllabus_prompt_has_no_units(app, db_session, server, subject):
+    add_source(db_session, subject, 1, PASSAGES)
+    db_session.commit()
+    server.generated = [outline(2, 3, units=(None, None)), *script(2, 3)[1:]]
+    run_overview(app, db_session, subject)
+    prompt = outline_prompt(server)
+    assert "Choose chapters that suit the passages." in prompt
+    assert "Unit 1:" not in prompt
+    [version] = versions(db_session, subject)
+    assert all(i.unit_number is None for i in version.items)
+
+
+def test_board_none_ignores_syllabus(app, db_session, server, sourced):
+    sourced.board = "none"
+    db_session.commit()
+    server.generated = [outline(2, 3, units=(None, None)), *script(2, 3)[1:]]
+    run_overview(app, db_session, sourced)
+    assert "Unit 1:" not in outline_prompt(server)
+    [version] = versions(db_session, sourced)
+    assert all(i.unit_number is None for i in version.items)

@@ -32,10 +32,17 @@ from chalkboard.models import (
     PlanVersion,
     Sentence,
     Source,
+    SyllabusUnit,
 )
 from chalkboard.overview import OverviewError
 from chalkboard.subjects import board_line, own_subject, times_of
-from chalkboard.syllabus import current_syllabus, unit_rows
+from chalkboard.syllabus import (
+    current_syllabus,
+    set_other_term,
+    subject_unit,
+    unit_passage,
+    unit_rows,
+)
 from chalkboard.timetable import budget, days_summary, format_duration
 
 bp = Blueprint("overview", __name__, url_prefix="/subjects/<int:subject_id>/overview")
@@ -117,6 +124,45 @@ def fix_prefill(chapter_number: int, text: str) -> str:
     return f'Fix this sentence in Chapter {chapter_number}: "{text}"'
 
 
+def add_prefill(
+    unit: SyllabusUnit, units: list[SyllabusUnit], items: list[PlanItem]
+) -> str:
+    position = {u.number: u.position for u in units}
+    for k, item in enumerate(items, 1):
+        if position.get(item.unit_number, -1) > unit.position:
+            return f"Add a chapter for Unit {unit.number} before Chapter {k}"
+    if items:
+        return f"Add a chapter for Unit {unit.number} after Chapter {len(items)}"
+    return f"Add a chapter for Unit {unit.number}"
+
+
+@dataclass(frozen=True)
+class CoverageRow:
+    unit: SyllabusUnit
+    chapters: list[int]  # 1-based chapter numbers citing this unit, in order
+
+    @property
+    def uncovered(self) -> bool:
+        return not self.chapters and not self.unit.other_term
+
+
+def coverage_rows(
+    units: list[SyllabusUnit], items: list[PlanItem]
+) -> list[CoverageRow]:
+    """One row per unit in syllabus order."""
+    return [
+        CoverageRow(
+            u, [i + 1 for i, item in enumerate(items) if item.unit_number == u.number]
+        )
+        for u in units
+    ]
+
+
+def coverage_chip(rows: list[CoverageRow]) -> str:
+    covered = sum(1 for r in rows if r.chapters)
+    return f"{covered} of {len(rows)} unit{'' if len(rows) == 1 else 's'}"
+
+
 @dataclass(frozen=True)
 class ChapterRow:
     number: int
@@ -193,6 +239,8 @@ def page_context(
     version_number: int | None = None,
     cite_id: int | None = None,
     fix_id: int | None = None,
+    add_id: int | None = None,
+    unit_id: int | None = None,
     change_text: str = "",
     change_error: str = "",
 ) -> dict:
@@ -237,7 +285,8 @@ def page_context(
     )
     follows_board = subject.board != "none"
     syllabus = current_syllabus(session, subject) if follows_board else None
-    unit_count = len(unit_rows(session, syllabus.id)) if syllabus else 0
+    units = unit_rows(session, syllabus.id) if syllabus else []
+    unit_count = len(units)
     syllabus_chip = (
         f"{board_line(subject.board, subject.state_board, subject.grade)} · "
         f"{unit_count} unit{'' if unit_count == 1 else 's'}"
@@ -249,7 +298,9 @@ def page_context(
     rows: list[ChapterRow] = []
     amber_ids: set[int] = set()
     flagged: list[Sentence] = []
-    banner = show_it = passage = None
+    banner = show_it = passage = unit_panel = None
+    coverage: list[CoverageRow] = []
+    unit_ids: dict[int, int] = {}
     change = change_text
     if version is not None:
         m = subject.class_minutes
@@ -262,6 +313,20 @@ def page_context(
             bar = bar_parts(summary.planned_minutes, summary.budget_minutes)
         estimated = format_duration(sum(class_count(h, m) or 0 for h in hours) * m)
         rows = chapter_rows(version, m, summary)
+        coverage = coverage_rows(units, version.items)
+        unit_ids = {u.number: u.id for u in units}
+        if not change and add_id and not read_only:
+            unit = next((u for u in units if u.id == add_id), None)
+            if unit is not None:
+                change = add_prefill(unit, units, version.items)
+        if unit_id:
+            unit = next((u for u in units if u.id == unit_id), None)
+            if unit is not None:
+                unit_panel = {
+                    "unit": unit,
+                    "source": syllabus,
+                    "chunk": unit_passage(session, unit),
+                }
         shown = [s for row in rows for s in row.sentences]
         amber_ids = amber_citation_ids(shown)
         flagged = [s for s in shown if s.check_flag]
@@ -309,6 +374,11 @@ def page_context(
         "follows_board": follows_board,
         "syllabus": syllabus,
         "syllabus_chip": syllabus_chip,
+        "coverage": coverage,
+        "coverage_chip": coverage_chip(coverage) if coverage else "",
+        "coverage_flag": any(r.uncovered for r in coverage),
+        "unit_ids": unit_ids,
+        "unit_panel": unit_panel,
     }
 
 
@@ -336,6 +406,8 @@ def show(subject_id: int):
             args.get("version", type=int),
             args.get("cite", type=int),
             args.get("fix", type=int),
+            args.get("add", type=int),
+            args.get("unit", type=int),
         ),
     )
 
@@ -379,6 +451,38 @@ def passage(subject_id: int, citation_id: int):
         version=version,
         read_only=version.id != versions[0].id,
     )
+
+
+@bp.get("/units/<int:unit_id>")
+def unit_text(subject_id: int, unit_id: int):
+    subject = own_subject(subject_id)
+    session = get_session()
+    unit = subject_unit(session, subject, unit_id)
+    if unit is None or subject.board == "none":
+        abort(404)
+    return render_template(
+        "overview/_unit.html",
+        unit_panel={
+            "unit": unit,
+            "source": session.get(Source, unit.source_id),
+            "chunk": unit_passage(session, unit),
+        },
+        subject=subject,
+        version=overview.latest_overview(session, subject.id),
+    )
+
+
+@bp.post("/units/<int:unit_id>/term")
+def other_term(subject_id: int, unit_id: int):
+    subject = own_subject(subject_id)
+    checked_post()
+    session = get_session()
+    unit = subject_unit(session, subject, unit_id)
+    if unit is None:
+        abort(404)
+    set_other_term(session, unit, request.form.get("other_term") == "1")
+    session.commit()
+    return back(subject)
 
 
 @bp.post("/generate")

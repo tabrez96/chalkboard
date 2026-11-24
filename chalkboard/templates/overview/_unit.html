@@ -1,0 +1,12 @@
+{% from "_icons.html" import icon %}
+<div class="passage-head">
+  <span class="summary-label">Syllabus · Unit {{ unit_panel.unit.number }}</span>
+  <a class="icon-btn passage-close" href="{{ url_for('overview.show', subject_id=subject.id, version=version.number) if version else url_for('overview.show', subject_id=subject.id) }}" aria-label="Close passage">{{ icon('close') }}</a>
+</div>
+<p><strong>{{ unit_panel.unit.title }}</strong></p>
+<p class="muted">{{ unit_panel.source.name }}{% if unit_panel.chunk and unit_panel.chunk.page_start %} · {{ pages_label(unit_panel.chunk.page_start, unit_panel.chunk.page_end) }}{% endif %}</p>
+{% if unit_panel.chunk %}
+<blockquote class="passage-quote">{{ unit_panel.chunk.text|truncate(1500) }}</blockquote>
+{% else %}
+<p class="muted">The syllabus lists this unit by name only.</p>
+{% endif %}

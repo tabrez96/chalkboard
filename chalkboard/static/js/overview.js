@@ -12,7 +12,7 @@
 
   if (panel) {
     document.addEventListener("click", async (event) => {
-      const link = event.target.closest("a.cite");
+      const link = event.target.closest("a.cite, a.unit-cite");
       if (link) {
         event.preventDefault();
         opener = link;
@@ -45,6 +45,13 @@
       opener =
         [...document.querySelectorAll("a.cite")].find(
           (a) => new URL(a.href).searchParams.get("cite") === cite,
+        ) || null;
+    }
+    const unit = new URL(location.href).searchParams.get("unit");
+    if (unit && !panel.hidden) {
+      opener =
+        [...document.querySelectorAll("a.unit-cite")].find(
+          (a) => new URL(a.href).searchParams.get("unit") === unit,
         ) || null;
     }
   }
