@@ -1,25 +1,31 @@
-"""Sources: storing uploads, the ingest job that turns them into embedded passages, and their status."""
+"""Sources: storing uploads and saved pages, the jobs that save a page and turn files into embedded passages, and their status."""
 
 import os
 from pathlib import Path
 from typing import BinaryIO
 
 from flask import current_app
-from sqlalchemy import delete, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from chalkboard import jobs
 from chalkboard.ai import model_client
 from chalkboard.chunker import chunk
-from chalkboard.extract import ExtractError, extract, kind_for
+from chalkboard.extract import ExtractError, extract, kind_for, page_text
 from chalkboard.jobs import JobContext
 from chalkboard.models import Chunk, Source, Subject
+from chalkboard.net import PageBlocked, PageError, fetch_page, resolve_host
+from chalkboard.sites import page_origin, site_access
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 # One source file plus the multipart overhead; Flask refuses bigger requests with 413.
 MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
 EMBED_BATCH = 16
 UNREADABLE = "Couldn't read the file"
+BLOCKED = "Blocked: site not chosen"
+# Tests put a MockTransport and a fake resolver here; production leaves them unset.
+PAGE_TRANSPORT_KEY = "chalkboard.page_transport"
+PAGE_RESOLVER_KEY = "chalkboard.page_resolver"
 WAITING = "Saved · waiting for Ollama"
 UNSUPPORTED = "Upload a PDF, Word (.docx), text or Markdown file"
 
@@ -92,6 +98,33 @@ def store_upload(
     return source
 
 
+def store_page(session: Session, subject: Subject, url: str) -> Source:
+    """Record a page to save; the `save_page` job downloads it, so nothing is fetched here."""
+    try:
+        source = Source(
+            subject_id=subject.id,
+            number=next_number(session, subject),
+            name=clean_name(url),
+            origin=page_origin(url),
+            kind="web",
+            file_path="",
+        )
+        session.add(source)
+        session.flush()
+        source.file_path = f"sources/{source.id}.txt"
+        source.job = jobs.enqueue(
+            session,
+            subject.teacher_id,
+            "save_page",
+            {"source_id": source.id, "url": url},
+        )
+        session.commit()
+    except BaseException:
+        session.rollback()
+        raise
+    return source
+
+
 def delete_source(session: Session, source: Source) -> None:
     path = data_dir() / source.file_path
     # A running job is left alone: its handler does nothing once the row is gone.
@@ -115,10 +148,55 @@ def status_label(source: Source) -> str:
         n = source.passages
         return f"Ready · {n} passage{'s' if n != 1 else ''}"
     if job.state == "failed":
-        return UNREADABLE
+        return BLOCKED if job.error == BLOCKED else UNREADABLE
     if job.state == "waiting_ollama":
         return WAITING
     return f"Reading · {job.progress}%"
+
+
+@jobs.register("save_page", needs_ollama=False)
+def save_page(ctx: JobContext) -> None:
+    source = ctx.session.get(Source, ctx.payload["source_id"])
+    if source is None:
+        return
+    target = data_dir() / source.file_path
+    if (
+        not target.exists()
+    ):  # downloaded once: a re-run after a crash never fetches again
+        ctx.progress("Saving the page", 0)
+        subject = ctx.session.get(Subject, source.subject_id)
+        try:
+            page = fetch_page(
+                ctx.payload["url"],
+                site_access(subject, ctx.teacher),
+                transport=current_app.extensions.get(PAGE_TRANSPORT_KEY),
+                resolve=current_app.extensions.get(PAGE_RESOLVER_KEY, resolve_host),
+            )
+        except PageBlocked as exc:
+            raise jobs.JobFailed(BLOCKED) from exc
+        except PageError as exc:
+            raise jobs.JobFailed(UNREADABLE) from exc
+        title, text = page_text(page.body, page.content_type, page.url, page.charset)
+        if not text.strip():
+            raise jobs.JobFailed(UNREADABLE)
+        part = target.with_name(target.name + ".part")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            part.write_text(text, encoding="utf-8")
+            os.replace(part, target)
+        except BaseException:
+            part.unlink(missing_ok=True)
+            raise
+        # A delete that committed while the page downloaded found no file to remove; read committed state, not the
+        # cached row. A delete that commits after this check unlinks the file itself.
+        if ctx.session.scalar(select(Source.id).where(Source.id == source.id)) is None:
+            target.unlink(missing_ok=True)
+            return
+        if title:
+            source.name = title[:255]
+    source.job = jobs.enqueue(
+        ctx.session, ctx.teacher.id, "ingest_source", {"source_id": source.id}
+    )
 
 
 @jobs.register("ingest_source")
