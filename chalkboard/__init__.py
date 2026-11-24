@@ -6,6 +6,7 @@ from flask_wtf import CSRFProtect
 from chalkboard import (
     ai,
     auth,
+    chapters,  # noqa: F401  (registers the generate_chapter job)
     cli,
     health,
     jobs,
