@@ -35,13 +35,24 @@ from chalkboard.sources import (
     clean_name,
     delete_source,
     status_label,
+    status_tone,
     store_page,
     store_upload,
 )
-from chalkboard.subjects import own_subject
+from chalkboard.subjects import board_line, own_subject
+from chalkboard.syllabus import (
+    NO_UNITS,
+    current_syllabus,
+    syllabus_status,
+    syllabus_tone,
+    type_units,
+    unit_rows,
+    use_as_syllabus,
+)
 
 bp = Blueprint("sources", __name__, url_prefix="/subjects/<int:subject_id>/sources")
 bp.add_app_template_global(status_label)
+bp.add_app_template_global(status_tone)
 
 LINK_MESSAGE = "Paste a page link, like https://openstax.org/books/physics"
 
@@ -55,11 +66,12 @@ def sites_line(web_access: str, domains: list[str], open_mode: bool) -> tuple[st
     return f"Pages from {', '.join(domains)}", "subjects.settings"
 
 
-def summary_line(count: int, passages: int) -> str:
-    return (
+def summary_line(count: int, passages: int, syllabus: bool = False) -> str:
+    line = (
         f"{count} source{'' if count == 1 else 's'} · "
         f"{passages} passage{'' if passages == 1 else 's'}"
     )
+    return f"Syllabus + {line}" if syllabus else line
 
 
 @bp.app_template_global()
@@ -69,14 +81,6 @@ def pages_label(start: int | None, end: int | None) -> str:
     if end is None or end == start:
         return f"Page {start}"
     return f"Pages {start}–{end}"
-
-
-@bp.app_template_global()
-def status_tone(source: Source) -> str:
-    state = source.job.state if source.job is not None else "done"
-    return {"waiting_ollama": "chip-flag", "failed": "chip-danger"}.get(
-        state, "chip-ok"
-    )
 
 
 def subject_sources(subject) -> list[Source]:
@@ -99,6 +103,13 @@ def own_source(subject, source_id: int) -> Source:
     return source
 
 
+def own_syllabus(subject, source_id: int) -> Source:
+    source = own_source(subject, source_id)
+    if not source.is_syllabus or subject.board == "none":
+        abort(404)
+    return source
+
+
 def back(subject):
     return redirect(url_for("sources.index", subject_id=subject.id), 303)
 
@@ -108,20 +119,45 @@ def page_context(
     confirm: Source | None = None,
     page_error: dict | None = None,
     link_value: str = "",
+    use_confirm: Source | None = None,
+    units_for: Source | None = None,
+    units_error: str = "",
 ) -> dict:
-    rows = subject_sources(subject)
+    session = get_session()
+    follows_board = subject.board != "none"
+    # With board "none" a leftover syllabus flag shows as a normal numbered row.
+    syllabus = current_syllabus(session, subject) if follows_board else None
+    rows = [s for s in subject_sources(subject) if s is not syllabus]
+    unit_count = len(unit_rows(session, syllabus.id)) if syllabus else 0
+    label = syllabus_status(syllabus, unit_count) if syllabus else ""
     line, change = sites_line(
         subject.web_access,
         [s.domain for s in subject.sites],
         current_teacher().allow_any_site,
     )
+    active = rows + ([syllabus] if syllabus else [])
     return {
         "subject": subject,
         "active": "sources.index",
         "sources": rows,
-        "summary": summary_line(len(rows), sum(s.passages for s in rows))
-        if rows
+        "summary": summary_line(
+            len(rows), sum(s.passages for s in rows), syllabus is not None
+        )
+        if rows or syllabus
         else "",
+        "follows_board": follows_board,
+        "syllabus": syllabus,
+        "syllabus_line": board_line(subject.board, subject.state_board, subject.grade),
+        "syllabus_label": label,
+        "syllabus_tone": syllabus_tone(syllabus, unit_count) if syllabus else "",
+        "unit_count": unit_count,
+        # See units / Type the units show once the reading is done.
+        "units_available": bool(unit_count) or label == NO_UNITS,
+        "use_confirm": use_confirm,
+        "old_syllabus": syllabus if use_confirm else None,
+        "units_for": units_for,
+        "units": unit_rows(session, units_for.id) if units_for else [],
+        "units_error": units_error,
         "sites_text": line,
         "change_url": (
             url_for(change, subject_id=subject.id)
@@ -129,9 +165,13 @@ def page_context(
             else url_for(change)
         ),
         "polling": confirm is None
-        and any(s.job is not None and s.job.state in jobs.ACTIVE_STATES for s in rows),
+        and use_confirm is None
+        and units_for is None
+        and any(
+            s.job is not None and s.job.state in jobs.ACTIVE_STATES for s in active
+        ),
         "confirm": confirm,
-        "affected": affected_plans(get_session(), confirm) if confirm else [],
+        "affected": affected_plans(session, confirm) if confirm else [],
         "max_bytes": MAX_UPLOAD_BYTES,
         "can_save_pages": can_save_pages(site_access(subject, current_teacher())),
         "page_error": page_error,
@@ -255,4 +295,53 @@ def delete(subject_id: int, source_id: int):
     name = source.name
     delete_source(get_session(), source)
     flash(f"Deleted {name}")
+    return back(subject)
+
+
+@bp.get("/<int:source_id>/syllabus")
+def confirm_syllabus(subject_id: int, source_id: int):
+    subject = own_subject(subject_id)
+    source = own_source(subject, source_id)
+    if subject.board == "none":
+        abort(400)
+    current = current_syllabus(get_session(), subject)
+    if current is None or current is source:
+        return back(subject)
+    return render_template(
+        "sources/index.html", **page_context(subject, use_confirm=source)
+    )
+
+
+@bp.post("/<int:source_id>/syllabus")
+def use_syllabus(subject_id: int, source_id: int):
+    subject = own_subject(subject_id)
+    source = own_source(subject, source_id)
+    if not FlaskForm().validate_on_submit() or subject.board == "none":
+        abort(400)
+    use_as_syllabus(get_session(), subject, source)
+    flash(f"{source.name} is now the syllabus")
+    return back(subject)
+
+
+@bp.get("/<int:source_id>/units")
+def units(subject_id: int, source_id: int):
+    subject = own_subject(subject_id)
+    source = own_syllabus(subject, source_id)
+    return render_template(
+        "sources/index.html", **page_context(subject, units_for=source)
+    )
+
+
+@bp.post("/<int:source_id>/units")
+def save_units(subject_id: int, source_id: int):
+    subject = own_subject(subject_id)
+    source = own_syllabus(subject, source_id)
+    if not FlaskForm().validate_on_submit():
+        abort(400)
+    try:
+        saved = type_units(get_session(), source, request.form.get("units", ""))
+    except ValueError as exc:
+        context = page_context(subject, units_for=source, units_error=str(exc))
+        return render_template("sources/index.html", **context), 422
+    flash(f"Saved {saved} unit{'' if saved == 1 else 's'}")
     return back(subject)

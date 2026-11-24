@@ -41,14 +41,21 @@ class FakeEmbedder:
 class FakeOllama(FakeEmbedder):
     """Stands in for the Ollama client behind RedactingClient; set `up = False` to simulate an unreachable server."""
 
-    def __init__(self, up: bool = True):
+    def __init__(self, up: bool = True, generated: list[dict] | None = None):
         super().__init__()
         self.up = up
+        self.generated = list(generated or [])
 
     def embed(self, texts: list[str]) -> list[Vector]:
         if not self.up:
             raise OllamaUnreachable("down")
         return super().embed(texts)
+
+    def generate(self, prompt: str, schema: dict) -> dict:
+        if not self.up:
+            raise OllamaUnreachable("down")
+        self.calls.append([prompt])
+        return self.generated.pop(0) if self.generated else {}
 
     def health(self) -> Health:
         return Health(HealthState.OK if self.up else HealthState.UNREACHABLE)

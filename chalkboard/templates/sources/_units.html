@@ -1,0 +1,28 @@
+{% from "_icons.html" import icon %}
+{% set index_url = url_for('sources.index', subject_id=subject.id) %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="units-title">
+    <div class="modal-head">
+      <h2 id="units-title">{{ "Units" if units else "Type the units" }}</h2>
+      <a class="icon-btn" href="{{ index_url }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    {% if units %}
+    <ol class="unit-list">{% for u in units %}<li><span class="muted">Unit {{ u.number }}</span> {{ u.title }}</li>{% endfor %}</ol>
+    {% if units[0].typed %}<p class="muted">Typed by you</p>{% endif %}
+    <div class="modal-foot">
+      <a class="btn" href="{{ index_url }}" autofocus>Close</a>
+    </div>
+    {% else %}
+    <form method="post" action="{{ url_for('sources.save_units', subject_id=subject.id, source_id=units_for.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label for="units-text">One unit per line, in order</label>
+      <textarea id="units-text" name="units" rows="8" required autofocus{% if units_error %} aria-invalid="true" aria-describedby="units-error"{% endif %}></textarea>
+      {% if units_error %}<p id="units-error" class="field-error" role="alert">{{ units_error }}</p>{% endif %}
+      <div class="modal-foot">
+        <a class="btn" href="{{ index_url }}">Cancel</a>
+        <button class="btn btn-primary" type="submit">Save units</button>
+      </div>
+    </form>
+    {% endif %}
+  </div>
+</div>

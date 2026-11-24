@@ -45,8 +45,10 @@
   {% include "sources/_live.html" %}
 </div>
 {% if confirm %}{% include "sources/_confirm.html" %}{% endif %}
+{% if use_confirm %}{% include "sources/_use_syllabus.html" %}{% endif %}
+{% if units_for %}{% include "sources/_units.html" %}{% endif %}
 {% endblock %}
 {% block scripts %}
-{% if confirm %}<script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
+{% if confirm or use_confirm or units_for %}<script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>
 {% else %}<script src="{{ url_for('static', filename='js/sources.js') }}" defer></script>{% endif %}
 {% endblock %}

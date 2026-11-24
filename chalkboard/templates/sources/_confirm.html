@@ -3,7 +3,7 @@
 <div class="modal-backdrop">
   <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="delete-title">
     <div class="modal-head">
-      <h2 id="delete-title">Delete source {{ confirm.number }}?</h2>
+      <h2 id="delete-title">{% if confirm.is_syllabus %}Delete the syllabus?{% else %}Delete source {{ confirm.number }}?{% endif %}</h2>
       <a class="icon-btn" href="{{ index_url }}" aria-label="Close">{{ icon('close', 16) }}</a>
     </div>
     <p><strong>{{ confirm.name }}</strong> and its passages will be removed from {{ subject.name }}.</p>
@@ -15,7 +15,7 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="modal-foot">
         <a class="btn" href="{{ index_url }}" autofocus>Cancel</a>
-        <button class="btn btn-danger" type="submit">Delete source</button>
+        <button class="btn btn-danger" type="submit">{% if confirm.is_syllabus %}Delete syllabus{% else %}Delete source{% endif %}</button>
       </div>
     </form>
   </div>

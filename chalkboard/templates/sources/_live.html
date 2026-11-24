@@ -1,20 +1,39 @@
 {% from "_icons.html" import icon %}
 <div id="sources-live" class="source-stack"{% if polling %} hx-get="{{ url_for('sources.live', subject_id=subject.id) }}" hx-trigger="every 3s" hx-swap="outerHTML"{% endif %}>
   {% if oob %}{% include "sources/_ollama_slot.html" %}{% endif %}
-  {% if sources %}
+  {% if sources or syllabus %}
   <section class="card source-card">
     <table class="source-table">
       <thead>
         <tr><th scope="col">#</th><th scope="col">Source</th><th scope="col">From</th><th scope="col">Status</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
       </thead>
       <tbody>
+        {% if syllabus %}
+        <tr class="syllabus-row">
+          <td><span class="syllabus-icon">{{ icon('file', 16) }}</span></td>
+          <td>
+            <p class="row-over"><span class="chip chip-primary">Syllabus</span>{% if syllabus_line %} <span class="muted">{{ syllabus_line }}</span>{% endif %}</p>
+            <a id="source-name-{{ syllabus.id }}" href="{{ url_for('sources.text', subject_id=subject.id, source_id=syllabus.id) }}">{{ syllabus.name }}</a>
+          </td>
+          <td>{{ "Uploaded" if syllabus.origin == "upload" else syllabus.origin }}</td>
+          <td><span class="chip {{ syllabus_tone }}">{{ syllabus_label }}</span></td>
+          <td class="source-actions">
+            {% if units_available %}<a class="btn btn-ghost" href="{{ url_for('sources.units', subject_id=subject.id, source_id=syllabus.id) }}">{{ 'See units' if unit_count else 'Type the units' }}</a>{% endif %}
+            <a id="source-delete-{{ syllabus.id }}" class="icon-btn" href="{{ url_for('sources.confirm_delete', subject_id=subject.id, source_id=syllabus.id) }}" aria-label="Delete the syllabus" data-tip="Delete">{{ icon('trash', 16) }}</a>
+          </td>
+        </tr>
+        {% endif %}
         {% for s in sources %}
         <tr>
           <td><span class="source-num">{{ s.number }}</span></td>
           <td><a id="source-name-{{ s.id }}" href="{{ url_for('sources.text', subject_id=subject.id, source_id=s.id) }}">{{ s.name }}</a></td>
           <td>{{ "Uploaded" if s.origin == "upload" else s.origin }}</td>
           <td><span class="chip {{ status_tone(s) }}">{{ status_label(s) }}</span></td>
-          <td class="source-actions"><a id="source-delete-{{ s.id }}" class="icon-btn" href="{{ url_for('sources.confirm_delete', subject_id=subject.id, source_id=s.id) }}" aria-label="Delete source {{ s.number }}" data-tip="Delete">{{ icon('trash', 16) }}</a></td>
+          <td class="source-actions">
+            {% if follows_board and syllabus %}<a class="icon-btn" href="{{ url_for('sources.confirm_syllabus', subject_id=subject.id, source_id=s.id) }}" aria-label="Use source {{ s.number }} as syllabus" data-tip="Use as syllabus">{{ icon('bookmark', 16) }}</a>
+            {% elif follows_board %}<form method="post" action="{{ url_for('sources.use_syllabus', subject_id=subject.id, source_id=s.id) }}" class="inline-form"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}" /><button type="submit" class="icon-btn" aria-label="Use source {{ s.number }} as syllabus" data-tip="Use as syllabus">{{ icon('bookmark', 16) }}</button></form>{% endif %}
+            <a id="source-delete-{{ s.id }}" class="icon-btn" href="{{ url_for('sources.confirm_delete', subject_id=subject.id, source_id=s.id) }}" aria-label="Delete source {{ s.number }}" data-tip="Delete">{{ icon('trash', 16) }}</a>
+          </td>
         </tr>
         {% endfor %}
       </tbody>

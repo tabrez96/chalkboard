@@ -5,6 +5,7 @@ import httpx
 
 from chalkboard.ai.base import (
     EMBED_DIMENSIONS,
+    FormatMismatch,
     Health,
     HealthState,
     ModelMissing,
@@ -97,7 +98,9 @@ class OllamaClient:
         except json.JSONDecodeError:
             result = None
         if not isinstance(result, dict):
-            raise OllamaError("The model's answer did not match the requested format")
+            raise FormatMismatch(
+                "The model's answer did not match the requested format"
+            )
         return result
 
     def embed(self, texts: list[str]) -> list[Vector]:
