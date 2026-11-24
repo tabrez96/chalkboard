@@ -18,6 +18,10 @@ class Embedder(Protocol):
     def embed(self, texts: list[str]) -> list[Vector]: ...
 
 
+@runtime_checkable
+class ModelClient(LLMClient, Embedder, Protocol): ...
+
+
 @dataclass(frozen=True)
 class OllamaConfig:
     url: str
