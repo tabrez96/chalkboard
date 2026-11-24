@@ -68,7 +68,7 @@
     });
   }
 
-  let progress = document.getElementById("overview-progress");
+  let progress = document.querySelector("[data-progress]");
   if (progress) {
     const timer = setInterval(async () => {
       try {
@@ -78,7 +78,7 @@
           location.reload();
         } else if (r.ok) {
           progress.outerHTML = await r.text();
-          progress = document.getElementById("overview-progress");
+          progress = document.querySelector("[data-progress]");
         }
       } catch {
         // Try again on the next tick.

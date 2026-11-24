@@ -1,0 +1,22 @@
+{% from "_icons.html" import icon %}
+<nav class="card chapters-list" aria-labelledby="chapters-title">
+  <h2 id="chapters-title">Chapters</h2>
+  {% if not rows %}
+  <p class="muted">Approve the course overview first</p>
+  <a class="btn" href="{{ url_for('overview.show', subject_id=subject.id) }}">Go to Course overview</a>
+  {% else %}
+  <ol>
+    {% for n, e, chip in rows %}
+    <li>
+      <a class="chapters-item" href="{{ index_url(chapter=e.key) }}"{% if selected and e.key == selected.key %} aria-current="page"{% endif %}>
+        <span class="row-over">Chapter {{ n }}</span>
+        {% if e.hours is not none %}<span class="muted">{{ format_hours(e.hours) }}</span>{% endif %}
+        <strong>{{ e.title }}</strong>
+        <span class="{{ chip[1] }}">{{ chip[0] }}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ol>
+  <a class="chapters-add" href="{{ url_for('chapters.new', subject_id=subject.id) }}">{{ icon('plus') }}Add a chapter</a>
+  {% endif %}
+</nav>

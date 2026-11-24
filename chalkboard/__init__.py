@@ -7,6 +7,7 @@ from chalkboard import (
     ai,
     auth,
     chapters,  # noqa: F401  (registers the generate_chapter job)
+    chapters_page,
     cli,
     health,
     jobs,
@@ -44,6 +45,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(students.bp)
     app.register_blueprint(sources_page.bp)
     app.register_blueprint(overview_page.bp)
+    app.register_blueprint(chapters_page.bp)
     app.register_blueprint(settings_page.bp)
     app.register_blueprint(jobs.bp)
     shell.init_shell(app)
