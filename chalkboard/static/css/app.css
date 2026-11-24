@@ -1539,14 +1539,44 @@ a.btn {
   border-top: 1px solid var(--line);
 }
 
-.source-table a:not(.icon-btn) {
+.source-table a:not(.icon-btn):not(.btn) {
   color: var(--primary);
   text-decoration: underline;
 }
 
 .source-actions {
-  width: 48px;
+  width: auto;
+  white-space: nowrap;
   text-align: right;
+}
+
+.syllabus-row td {
+  background: var(--primary-soft);
+}
+
+/* Square ends and a straight bar: the accent rule never curves (design/ux.md, Components). */
+.syllabus-row td:first-child {
+  box-shadow: inset 3px 0 0 var(--primary);
+}
+
+.syllabus-icon {
+  display: inline-flex;
+  width: 22px;
+  justify-content: center;
+  color: var(--on-primary-soft);
+}
+
+.row-over {
+  margin: 0 0 2px;
+  font-size: 12px;
+}
+
+.unit-list {
+  padding-left: 20px;
+}
+
+.inline-form {
+  display: inline;
 }
 
 .source-num {
@@ -1605,4 +1635,20 @@ body.is-dropping::after {
 .passage-text {
   margin: 0;
   white-space: pre-wrap;
+}
+
+.modal textarea {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.modal textarea[aria-invalid="true"] {
+  border-color: var(--danger);
 }

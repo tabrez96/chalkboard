@@ -154,6 +154,13 @@ def status_label(source: Source) -> str:
     return f"Reading · {job.progress}%"
 
 
+def status_tone(source: Source) -> str:
+    state = source.job.state if source.job is not None else "done"
+    return {"waiting_ollama": "chip-flag", "failed": "chip-danger"}.get(
+        state, "chip-ok"
+    )
+
+
 @jobs.register("save_page", needs_ollama=False)
 def save_page(ctx: JobContext) -> None:
     source = ctx.session.get(Source, ctx.payload["source_id"])
@@ -236,3 +243,10 @@ def ingest_source(ctx: JobContext) -> None:
         for p, v in zip(pieces, vectors, strict=True)
     )
     source.passages = len(pieces)
+    # The committed flag, read under the row lock `use_as_syllabus` takes: one of the two sides queues detection.
+    if ctx.session.scalar(
+        select(Source.is_syllabus).where(Source.id == source.id).with_for_update()
+    ):
+        source.job = jobs.enqueue(
+            ctx.session, ctx.teacher.id, "detect_units", {"source_id": source.id}
+        )

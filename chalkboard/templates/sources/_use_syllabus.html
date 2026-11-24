@@ -1,0 +1,18 @@
+{% from "_icons.html" import icon %}
+{% set index_url = url_for('sources.index', subject_id=subject.id) %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="use-title">
+    <div class="modal-head">
+      <h2 id="use-title">Use this as the syllabus?</h2>
+      <a class="icon-btn" href="{{ index_url }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <p><em>{{ old_syllabus.name }}</em> goes back to being a normal source.</p>
+    <form method="post" action="{{ url_for('sources.use_syllabus', subject_id=subject.id, source_id=use_confirm.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="modal-foot">
+        <a class="btn" href="{{ index_url }}" autofocus>Cancel</a>
+        <button class="btn btn-primary" type="submit">Use as syllabus</button>
+      </div>
+    </form>
+  </div>
+</div>

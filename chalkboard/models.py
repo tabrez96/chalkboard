@@ -239,6 +239,8 @@ class Source(Base):
     # Relative to Settings.data_dir, e.g. "sources/12.pdf".
     file_path: Mapped[str] = mapped_column(String(255))
     passages: Mapped[int] = mapped_column(server_default="0")
+    # At most one per subject (uq_sources_syllabus). The number is kept and only hidden while this is set.
+    is_syllabus: Mapped[bool] = mapped_column(server_default=sa.false())
     job_id: Mapped[int | None] = mapped_column(
         ForeignKey("jobs.id", ondelete="SET NULL")
     )
@@ -247,7 +249,29 @@ class Source(Base):
     __table_args__ = (
         UniqueConstraint("subject_id", "number"),
         CheckConstraint("kind IN ('pdf', 'docx', 'txt', 'md', 'web')", name="kind"),
+        Index(
+            "uq_sources_syllabus",
+            "subject_id",
+            unique=True,
+            postgresql_where=sa.text("is_syllabus"),
+        ),
     )
+
+
+class SyllabusUnit(Base):
+    __tablename__ = "syllabus_units"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("sources.id", ondelete="CASCADE"))
+    # 0-based order in the syllabus.
+    position: Mapped[int]
+    # As printed ("Unit IV" is 4); typed units are numbered 1, 2, 3… in the order typed.
+    number: Mapped[int]
+    title: Mapped[str] = mapped_column(String(200))
+    # Typed by the teacher; detection never replaces typed units.
+    typed: Mapped[bool] = mapped_column(server_default=sa.false())
+
+    __table_args__ = (UniqueConstraint("source_id", "position"),)
 
 
 class Chunk(Base):

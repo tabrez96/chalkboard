@@ -8,7 +8,14 @@ from sqlalchemy import func, select
 from chalkboard import jobs, sources
 from chalkboard.ai import FACTORY_KEY, RedactingClient
 from chalkboard.ai.fake import FakeOllama
-from chalkboard.models import AllowedSite, Chunk, Source, Subject, Teacher
+from chalkboard.models import (
+    AllowedSite,
+    Chunk,
+    Source,
+    Subject,
+    SyllabusUnit,
+    Teacher,
+)
 from chalkboard.passwords import hash_password
 from chalkboard.sources_page import pages_label, sites_line, status_tone, summary_line
 from tests.conftest import csrf_token, sign_in
@@ -359,3 +366,157 @@ def test_pages_label():
 def test_status_tone(state, tone):
     job = None if state is None else jobs.Job(state=state)
     assert status_tone(Source(job=job)) == tone
+
+
+def test_summary_line_with_syllabus():
+    assert summary_line(4, 91, syllabus=True) == "Syllabus + 4 sources · 91 passages"
+
+
+@pytest.fixture
+def cbse(subject, db_session):
+    subject.board = "cbse"
+    subject.grade = "Class 11"
+    db_session.commit()
+    return subject
+
+
+def add_source(db_session, subject, number, **fields):
+    source = Source(
+        subject_id=subject.id,
+        number=number,
+        name=f"Notes {number}.txt",
+        kind="txt",
+        file_path=f"sources/{number}.txt",
+        **fields,
+    )
+    db_session.add(source)
+    db_session.commit()
+    return source
+
+
+def post(client, subject, tail, **form):
+    token = csrf_token(client, url(subject))
+    return client.post(url(subject, tail), data={"csrf_token": token, **form})
+
+
+def add_units(db_session, source, titles, typed=False):
+    db_session.add_all(
+        SyllabusUnit(
+            source_id=source.id, position=i, number=i + 1, title=t, typed=typed
+        )
+        for i, t in enumerate(titles)
+    )
+    db_session.commit()
+
+
+def test_use_as_syllabus_without_existing_marks_at_once(
+    signed_in, cbse, db_session, data
+):
+    source = add_source(db_session, cbse, 1)
+    response = post(signed_in, cbse, f"/{source.id}/syllabus")
+    assert response.status_code == 303
+    html = text(signed_in.get(url(cbse)))
+    assert 'class="syllabus-row"' in html
+    assert ">Syllabus<" in html
+    assert "CBSE · Class 11" in html
+    assert "Notes 1.txt" in html
+    assert 'source-num">1<' not in html
+    assert "Syllabus + 0 sources · 0 passages" in html
+
+
+def test_bookmark_aria_label(signed_in, cbse, db_session):
+    add_source(db_session, cbse, 1)
+    html = text(signed_in.get(url(cbse)))
+    assert 'aria-label="Use source 1 as syllabus"' in html
+
+
+def test_replace_asks_first(signed_in, cbse, db_session):
+    first = add_source(db_session, cbse, 1, is_syllabus=True)
+    second = add_source(db_session, cbse, 2)
+    html = text(signed_in.get(url(cbse, f"/{second.id}/syllabus")))
+    assert "Use this as the syllabus?" in html
+    assert "<em>Notes 1.txt</em>" in html
+    assert post(signed_in, cbse, f"/{second.id}/syllabus").status_code == 303
+    html = text(signed_in.get(url(cbse)))
+    assert 'source-num">1<' in html
+    db_session.refresh(first)
+    assert (first.is_syllabus, first.number) == (False, 1)
+
+
+def test_confirm_redirects_when_nothing_to_replace(signed_in, cbse, db_session):
+    source = add_source(db_session, cbse, 1)
+    assert signed_in.get(url(cbse, f"/{source.id}/syllabus")).status_code == 303
+
+
+def test_syllabus_row_status_and_see_units(signed_in, cbse, db_session):
+    source = add_source(db_session, cbse, 1, is_syllabus=True)
+    add_units(db_session, source, ["Motion", "Forces", "Energy", "Waves", "Heat"])
+    html = text(signed_in.get(url(cbse)))
+    assert "Ready · 5 units" in html
+    assert "See units" in html
+    html = text(signed_in.get(url(cbse, f"/{source.id}/units")))
+    assert "<ol" in html
+    assert html.index("Motion") < html.index("Forces") < html.index("Heat")
+
+
+def test_type_the_units_when_none_found(signed_in, cbse, db_session):
+    source = add_source(db_session, cbse, 1, is_syllabus=True)
+    html = text(signed_in.get(url(cbse)))
+    assert "No units found" in html
+    assert "Type the units" in html
+    assert "autofocus" in text(signed_in.get(url(cbse, f"/{source.id}/units")))
+    assert post(signed_in, cbse, f"/{source.id}/units", units="A\nB").status_code == 303
+    html = text(signed_in.get(url(cbse, f"/{source.id}/units")))
+    assert html.index("</span> A</li>") < html.index("</span> B</li>")
+    assert "Typed by you" in html
+    assert "Ready · 2 units" in text(signed_in.get(url(cbse)))
+
+
+def test_type_units_blank_is_422(signed_in, cbse, db_session):
+    source = add_source(db_session, cbse, 1, is_syllabus=True)
+    response = post(signed_in, cbse, f"/{source.id}/units", units="  \n ")
+    assert response.status_code == 422
+    assert "Type at least one unit" in text(response)
+    assert "autofocus" in text(response)
+
+
+def test_syllabus_delete_label_and_title(signed_in, cbse, db_session):
+    source = add_source(db_session, cbse, 1, is_syllabus=True)
+    assert 'aria-label="Delete the syllabus"' in text(signed_in.get(url(cbse)))
+    html = text(signed_in.get(url(cbse, f"/{source.id}/delete")))
+    assert "Delete the syllabus?" in html
+    assert "Delete syllabus" in html
+
+
+def test_board_none_hides_syllabus(signed_in, subject, db_session):
+    source = add_source(db_session, subject, 1, is_syllabus=True)
+    html = text(signed_in.get(url(subject)))
+    assert "syllabus-row" not in html
+    assert "as syllabus" not in html
+    assert 'source-num">1<' in html
+    assert post(signed_in, subject, f"/{source.id}/syllabus").status_code == 400
+    assert signed_in.get(url(subject, f"/{source.id}/units")).status_code == 404
+
+
+def test_use_as_syllabus_without_csrf_is_400(signed_in, cbse, db_session):
+    source = add_source(db_session, cbse, 1)
+    response = signed_in.post(url(cbse, f"/{source.id}/syllabus"))
+    assert response.status_code == 400
+    db_session.refresh(source)
+    assert not source.is_syllabus
+
+
+def test_other_subjects_source_is_404(signed_in, cbse, db_session):
+    other = Teacher(
+        email="bo@example.com", name="Bo", password_hash=hash_password("pw")
+    )
+    db_session.add(other)
+    db_session.commit()
+    theirs = Subject(
+        teacher_id=other.id, name="Chemistry", class_minutes=45, colour="#3A57C9"
+    )
+    db_session.add(theirs)
+    db_session.commit()
+    source = add_source(db_session, theirs, 1, is_syllabus=True)
+    assert signed_in.get(url(cbse, f"/{source.id}/syllabus")).status_code == 404
+    assert signed_in.get(url(cbse, f"/{source.id}/units")).status_code == 404

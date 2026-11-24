@@ -50,6 +50,10 @@ class OllamaError(Exception): ...
 class OllamaUnreachable(OllamaError): ...
 
 
+class FormatMismatch(OllamaError):
+    """The server answered, but not in the requested JSON format."""
+
+
 class ModelMissing(OllamaError):
     def __init__(self, model: str):
         super().__init__(f"Model {model} is not installed on the Ollama server")
