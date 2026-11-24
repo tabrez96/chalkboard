@@ -1,0 +1,41 @@
+{% from "_icons.html" import icon %}
+{% macro control(field) -%}
+{%- if field.errors -%}
+{{ field(**dict(kwargs, **{"aria-invalid": "true", "aria-describedby": field.id ~ "-error"})) }}
+{%- else -%}
+{{ field(**kwargs) }}
+{%- endif -%}
+{%- endmacro %}
+{% macro error(field) -%}
+{%- if field.errors %}<p class="field-error" id="{{ field.id }}-error">{{ field.errors[0] }}</p>{% endif -%}
+{%- endmacro %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="chapter-form-title">
+    <div class="modal-head">
+      <h2 id="chapter-form-title">Add a chapter</h2>
+      <a class="icon-btn" href="{{ index_url() }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <form method="post" action="{{ url_for('chapters.create', subject_id=subject.id) }}" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="field">
+        {{ add_form.title.label }}
+        {{ control(add_form.title, autofocus=True) }}
+        {{ error(add_form.title) }}
+      </div>
+      <div class="field">
+        {{ add_form.hours.label }}
+        {{ control(add_form.hours, step="0.1", placeholder="e.g. 2") }}
+        {{ error(add_form.hours) }}
+      </div>
+      <div class="field">
+        {{ add_form.notes.label }}
+        {{ control(add_form.notes, placeholder="Optional, e.g. Focus on everyday examples") }}
+        {{ error(add_form.notes) }}
+      </div>
+      <div class="modal-foot">
+        <a class="btn" href="{{ index_url() }}">Cancel</a>
+        <button type="submit" class="btn btn-primary">Add chapter</button>
+      </div>
+    </form>
+  </div>
+</div>

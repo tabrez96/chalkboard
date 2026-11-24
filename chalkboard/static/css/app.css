@@ -2049,3 +2049,93 @@ a.unit-cite {
   text-decoration: none;
   cursor: pointer;
 }
+
+/* Chapters (S05) */
+.chapters-grid {
+  display: grid;
+  grid-template-columns: 270px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .chapters-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chapters-list {
+  padding: 18px;
+}
+
+.chapters-list h2 {
+  margin: 0 0 12px 6px;
+  font-size: 20px;
+}
+
+.chapters-list ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapters-item {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.chapters-item strong,
+.chapters-item .chip {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+.chapters-item[aria-current="page"],
+.chapters-item:hover {
+  background: var(--primary-soft);
+}
+
+.chapters-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0 12px;
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.next-card h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.next-card p {
+  margin: 0;
+}
+
+.next-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.next-card form {
+  margin-top: 14px;
+}
+
+.draft-card .section-title {
+  margin: 18px 0 6px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.draft-card .small + .section-title {
+  margin-top: 8px;
+}

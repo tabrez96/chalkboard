@@ -172,8 +172,8 @@ def test_subject_pages_render_with_subject(app, teacher):
         assert label in html
     assert 'aria-disabled="true"' in html
     disabled = re.findall(r"<a [^>]*aria-disabled=\"true\"[^>]*>", html)
-    # Students, Sources and Course overview are real links now, so two sidebar entries are still disabled.
-    assert len(disabled) == 2
+    # Students, Sources, Course overview and Chapters are real links now, so one sidebar entry is still disabled.
+    assert len(disabled) == 1
     assert all('tabindex="0"' in tag and "href=" not in tag for tag in disabled)
 
 
