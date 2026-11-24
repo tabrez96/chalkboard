@@ -1,0 +1,23 @@
+{% from "_icons.html" import icon %}
+{% set index_url = url_for('sources.index', subject_id=subject.id) %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="choose-title">
+    <div class="modal-head">
+      <h2 id="choose-title">Choose the syllabus</h2>
+      <a class="icon-btn" href="{{ index_url }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <ul class="choose-list">
+      {% for s in sources %}
+      <li>
+        <form method="post" action="{{ url_for('sources.use_syllabus', subject_id=subject.id, source_id=s.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button type="submit" class="choose-row"><span class="source-num">{{ s.number }}</span>{{ s.name }}</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="modal-foot">
+      <a class="btn" href="{{ index_url }}" autofocus>Cancel</a>
+    </div>
+  </div>
+</div>

@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from typing import BinaryIO
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
@@ -9,15 +10,23 @@ from sqlalchemy.orm import Session, selectinload
 from chalkboard import jobs
 from chalkboard.ai import model_client
 from chalkboard.ai.base import FormatMismatch, LLMClient
-from chalkboard.extract import ExtractError, extract
+from chalkboard.extract import ExtractError, extract, kind_for
 from chalkboard.jobs import JobContext
 from chalkboard.models import Job, Source, Subject, SyllabusUnit
-from chalkboard.sources import UNREADABLE, data_dir, status_label, status_tone
+from chalkboard.sources import (
+    UNREADABLE,
+    UploadError,
+    data_dir,
+    status_label,
+    status_tone,
+    store_upload,
+)
 
 MAX_UNITS = 60
 TITLE_MAX = 200
 LLM_TEXT_CHARS = 12000
 NO_UNITS = "No units found"
+PDF_ONLY = "Upload the syllabus as a PDF"
 
 HEADING = re.compile(
     r"^\s*(unit|chapter)\s*[-–—:.]?\s*(\d{1,2}|[ivxlc]{1,7})\b\s*[-–—:.)]?\s*(.*?)\s*$",
@@ -309,3 +318,24 @@ def syllabus_tone(source: Source, unit_count: int) -> str:
     if syllabus_status(source, unit_count) == NO_UNITS:
         return "chip-flag"
     return status_tone(source)
+
+
+def unmark_syllabus(session: Session, subject: Subject) -> None:
+    """The syllabus goes back to being a numbered source; its file, passages and units stay. The caller commits."""
+    session.execute(
+        select(Subject.id).where(Subject.id == subject.id).with_for_update()
+    )
+    old = current_syllabus(session, subject)
+    if old is not None:
+        old.is_syllabus = False
+        session.flush()
+
+
+def upload_syllabus(
+    session: Session, subject: Subject, filename: str, stream: BinaryIO
+) -> Source:
+    if kind_for(filename) != "pdf":
+        raise UploadError(PDF_ONLY)
+    source = store_upload(session, subject, filename, stream)
+    use_as_syllabus(session, subject, source)
+    return source

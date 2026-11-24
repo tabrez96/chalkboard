@@ -65,9 +65,68 @@
     });
   });
 
+  var field = form.querySelector("[data-syllabus]");
+  var file = form.elements.syllabus_file;
+  var choice = form.elements.syllabus;
+  var picked = field.querySelector("[data-syllabus-picked]");
+  var empty = field.querySelector("[data-syllabus-empty]");
+  var nameEl = field.querySelector("[data-syllabus-name]");
+  var errorEl = field.querySelector("[data-syllabus-error]");
+  var choose = field.querySelector("[data-syllabus-choose]");
+
+  function showPicked(name) {
+    nameEl.textContent = name;
+    picked.hidden = false;
+    empty.hidden = true;
+    errorEl.hidden = true;
+  }
+
+  function clearPick() {
+    choice.value = "remove";
+    file.value = "";
+    if (choose) choose.value = "";
+    picked.hidden = true;
+    empty.hidden = false;
+  }
+
+  file.addEventListener("change", function () {
+    var f = file.files[0];
+    if (!f) return;
+    if (f.size > Number(file.dataset.maxBytes)) {
+      file.value = "";
+      errorEl.textContent = f.name + ": The file is larger than 50 MB";
+      errorEl.hidden = false;
+      return;
+    }
+    choice.value = "";
+    if (choose) choose.value = "";
+    showPicked(f.name);
+  });
+
+  if (choose) {
+    choose.addEventListener("change", function () {
+      if (!choose.value) return;
+      choice.value = choose.value;
+      file.value = "";
+      showPicked(choose.selectedOptions[0].dataset.name);
+    });
+  }
+
+  field
+    .querySelector("[data-syllabus-remove]")
+    .addEventListener("click", clearPick);
+  field
+    .querySelector("[data-syllabus-change]")
+    .addEventListener("click", function () {
+      clearPick();
+      file.click();
+    });
+
   form.elements.board.addEventListener("change", function () {
     form.querySelector("[data-board-name]").hidden =
       form.elements.board.value !== "state";
+    field.hidden = form.elements.board.value === "none";
+    clearPick();
   });
 
   form.querySelectorAll("[data-access]").forEach(function (button) {

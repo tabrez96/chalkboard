@@ -1069,9 +1069,50 @@ a.btn {
 
 .form-board {
   display: grid;
-  grid-template-columns: 188px 1fr;
+  grid-template-columns: 188px;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 14px;
   margin-top: 14px;
+}
+
+.field-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.field-label .muted {
+  font-weight: 400;
+}
+.syllabus-field .btn {
+  display: inline-flex;
+  margin-bottom: 0;
+  font-size: inherit;
+}
+.syllabus-picked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.syllabus-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.syllabus-empty {
+  display: flex;
+  gap: 8px;
+}
+.syllabus-empty select {
+  flex: 1;
 }
 
 .field select {
@@ -1316,6 +1357,10 @@ a.btn {
     grid-template-columns: 1fr;
   }
 
+  .form-board {
+    grid-auto-flow: row;
+  }
+
   .site-checklist {
     grid-template-columns: 1fr;
   }
@@ -1458,7 +1503,9 @@ a.btn {
   display: contents;
 }
 
-#upload-input:focus-visible + label {
+#upload-input:focus-visible + label,
+#syllabus-input:focus-visible + label,
+#syllabus_file:focus-visible ~ .syllabus-empty label[for="syllabus_file"] {
   outline: 3px solid var(--yellow);
   outline-offset: 1px;
 }
@@ -1548,6 +1595,50 @@ a.btn {
   width: auto;
   white-space: nowrap;
   text-align: right;
+}
+
+.no-syllabus {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px dashed var(--flag-line);
+  border-radius: 9px;
+  background: var(--flag-soft);
+  color: var(--flag);
+  font-size: 14px;
+}
+.no-syllabus p {
+  flex: 1;
+  margin: 0;
+}
+.no-syllabus-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.choose-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.choose-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.choose-row:hover,
+.choose-row:focus-visible {
+  background: var(--primary-soft);
 }
 
 .syllabus-row td {

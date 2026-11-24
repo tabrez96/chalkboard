@@ -17,7 +17,7 @@
       <h2 id="subject-form-title">{{ "Subject settings" if editing else "New subject" }}</h2>
       <a class="icon-btn" href="{{ url_for('subjects.index') }}" aria-label="Close">{{ icon('close', 16) }}</a>
     </div>
-    <form method="post" novalidate>
+    <form method="post" enctype="multipart/form-data" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
       <div class="form-top">
         <div class="field">
@@ -48,6 +48,28 @@
           {{ form.state_board.label }}
           {{ control(form.state_board, placeholder="Maharashtra State Board") }}
           {{ error(form.state_board) }}
+        </div>
+        <div class="field syllabus-field" data-syllabus data-initial-board="{{ editing.board if editing else '' }}"{% if form.board.data == "none" %} hidden{% endif %}>
+          <span class="field-label" id="syllabus-label">Syllabus PDF <span class="muted">(optional)</span></span>
+          <input type="hidden" name="syllabus" value="{{ form.syllabus.data or '' }}" />
+          <input id="syllabus_file" class="visually-hidden" type="file" name="syllabus_file" accept=".pdf,application/pdf" data-max-bytes="{{ max_bytes }}"{% if form.syllabus_file.errors %} aria-invalid="true" aria-describedby="syllabus_file-error"{% endif %} />
+          <div class="syllabus-picked" data-syllabus-picked{% if not syllabus_name %} hidden{% endif %}>
+            {{ icon('file', 16) }}<span class="syllabus-name" data-syllabus-name>{{ syllabus_name }}</span>
+            <button type="button" class="btn btn-ghost" data-syllabus-change>Change</button>
+            <button type="button" class="icon-btn" data-syllabus-remove aria-label="Remove syllabus PDF" data-tip="Remove">{{ icon('trash', 16) }}</button>
+          </div>
+          <div class="syllabus-empty" data-syllabus-empty{% if syllabus_name %} hidden{% endif %}>
+            <label for="syllabus_file" class="btn">{{ icon('upload', 16) }}Upload PDF</label>
+            {% if editing and syllabus_choices %}
+            <label class="visually-hidden" for="syllabus-choose">Choose from sources</label>
+            <select id="syllabus-choose" data-syllabus-choose>
+              <option value="">Choose from sources</option>
+              {% for s in syllabus_choices %}<option value="{{ s.id }}" data-name="{{ s.name }}">{{ s.number }} · {{ s.name }}</option>{% endfor %}
+            </select>
+            {% endif %}
+          </div>
+          <p class="field-error" data-syllabus-error{% if not form.syllabus_file.errors %} hidden{% endif %} id="syllabus_file-error">{{ form.syllabus_file.errors[0] if form.syllabus_file.errors else '' }}</p>
+          {{ error(form.syllabus) }}
         </div>
       </div>
       <hr />

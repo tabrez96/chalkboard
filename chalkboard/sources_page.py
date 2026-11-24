@@ -39,7 +39,7 @@ from chalkboard.sources import (
     store_page,
     store_upload,
 )
-from chalkboard.subjects import board_line, own_subject
+from chalkboard.subjects import board_line, board_name, own_subject
 from chalkboard.syllabus import (
     NO_UNITS,
     current_syllabus,
@@ -47,6 +47,7 @@ from chalkboard.syllabus import (
     syllabus_tone,
     type_units,
     unit_rows,
+    upload_syllabus,
     use_as_syllabus,
 )
 
@@ -122,6 +123,7 @@ def page_context(
     use_confirm: Source | None = None,
     units_for: Source | None = None,
     units_error: str = "",
+    choosing: bool = False,
 ) -> dict:
     session = get_session()
     follows_board = subject.board != "none"
@@ -146,6 +148,8 @@ def page_context(
         if rows or syllabus
         else "",
         "follows_board": follows_board,
+        "board_name": board_name(subject.board, subject.state_board),
+        "choosing": choosing,
         "syllabus": syllabus,
         "syllabus_line": board_line(subject.board, subject.state_board, subject.grade),
         "syllabus_label": label,
@@ -167,6 +171,7 @@ def page_context(
         "polling": confirm is None
         and use_confirm is None
         and units_for is None
+        and not choosing
         and any(
             s.job is not None and s.job.state in jobs.ACTIVE_STATES for s in active
         ),
@@ -214,6 +219,34 @@ def upload(subject_id: int):
     return back(subject)
 
 
+@bp.post("/syllabus/upload")
+def upload_syllabus_file(subject_id: int):
+    subject = own_subject(subject_id)
+    if not FlaskForm().validate_on_submit() or subject.board == "none":
+        abort(400)
+    f = request.files.get("file")
+    if f is None or not f.filename:
+        flash("Choose a PDF to upload", "error")
+        return back(subject)
+    try:
+        source = upload_syllabus(get_session(), subject, f.filename, f.stream)
+    except UploadError as exc:
+        flash(f"{clean_name(f.filename)}: {exc}", "error")
+        return back(subject)
+    flash(f"{source.name} is now the syllabus")
+    return back(subject)
+
+
+@bp.get("/syllabus/choose")
+def choose_syllabus(subject_id: int):
+    subject = own_subject(subject_id)
+    if subject.board == "none":
+        abort(400)
+    if current_syllabus(get_session(), subject) is not None:
+        return back(subject)
+    return render_template("sources/index.html", **page_context(subject, choosing=True))
+
+
 def link_error(subject, url: str) -> dict:
     """What to tell the teacher about a link `may_fetch` refused for this subject."""
     if not may_fetch(url, SiteAccess(open_mode=True, domains=frozenset())):
@@ -253,7 +286,7 @@ def save_page(subject_id: int):
 
 @bp.app_errorhandler(RequestEntityTooLarge)
 def too_large(exc):
-    if request.endpoint != "sources.upload":
+    if request.endpoint not in ("sources.upload", "sources.upload_syllabus_file"):
         return exc
     flash("The file is larger than 50 MB", "error")
     return redirect(
