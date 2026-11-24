@@ -10,6 +10,7 @@ from chalkboard import (
     health,
     jobs,
     overview,  # noqa: F401  (registers the generate_overview job)
+    overview_page,
     settings_page,
     shell,
     sources,
@@ -41,6 +42,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(subjects.bp)
     app.register_blueprint(students.bp)
     app.register_blueprint(sources_page.bp)
+    app.register_blueprint(overview_page.bp)
     app.register_blueprint(settings_page.bp)
     app.register_blueprint(jobs.bp)
     shell.init_shell(app)

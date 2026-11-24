@@ -1743,3 +1743,237 @@ body.is-dropping::after {
 .modal textarea[aria-invalid="true"] {
   border-color: var(--danger);
 }
+
+/* S04 course overview */
+.head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .overview-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.overview-side {
+  position: sticky;
+  top: 24px;
+}
+
+.overview-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.overview-summary p {
+  margin: 6px 0 0;
+}
+
+.summary-label {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.budget-bar {
+  display: flex;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--surface-2);
+}
+
+.budget-ok {
+  background: var(--primary);
+}
+
+.budget-over {
+  background: var(--flag-line);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.chapter-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chapter-row {
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+}
+
+.chapter-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.chapter-title {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.chapter-hours {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 13px;
+}
+
+.chapter-hours strong {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.spill {
+  color: var(--flag);
+  font-size: 13px;
+}
+
+.chapter-text {
+  margin: 10px 0 0;
+  line-height: 1.6;
+}
+
+.cite {
+  display: inline-block;
+  min-width: 18px;
+  margin: 0 2px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.cite.is-flag {
+  border-color: var(--flag-line);
+  background: var(--flag-soft);
+  color: var(--flag);
+}
+
+.sentence.is-flagged {
+  text-decoration: underline 2px var(--flag-line);
+  text-underline-offset: 4px;
+}
+
+.passage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.passage-quote {
+  margin: 12px 0;
+  padding-left: 14px;
+  border-left: 3px solid var(--yellow);
+  border-radius: 0;
+}
+
+.request-box textarea {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.request-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.request-foot p {
+  margin: 0;
+}
+
+.request-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.progress-card {
+  max-width: 560px;
+  margin: 32px auto;
+}
+
+.progress-card progress {
+  width: 100%;
+  accent-color: var(--primary);
+}
+
+.progress-steps {
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.progress-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.step-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+}
+
+.step-done .step-dot {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.versions {
+  position: relative;
+}
+
+.versions summary {
+  cursor: pointer;
+}
+
+.versions ol {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 10;
+  min-width: 280px;
+  margin: 4px 0 0;
+  list-style: none;
+}
+
+.versions li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+}

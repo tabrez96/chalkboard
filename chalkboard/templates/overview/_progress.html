@@ -1,0 +1,16 @@
+{% from "_icons.html" import icon %}
+<section id="overview-progress" class="card progress-card" role="status" data-progress="{{ url_for('overview.progress', subject_id=subject.id) }}">
+  <h2>Writing your course overview</h2>
+  <p class="muted">This can take a few minutes on the Ollama server. You can leave this page; the draft will be here when it's done.</p>
+  <ol class="progress-steps">
+    {% for label, state, detail in steps %}
+    <li class="step-{{ state }}">
+      <span class="step-dot" aria-hidden="true">{% if state == "done" %}{{ icon('check', 12) }}{% endif %}</span>
+      {% if state == "current" %}<strong>{{ label }}</strong>{% else %}{{ label }}{% endif %}
+      {% if detail %}<span class="chip chip-primary">{{ detail }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% if job.state == "waiting_ollama" %}<span class="chip chip-flag">Saved · waiting for Ollama</span>{% endif %}
+  <progress max="100" value="{{ job.progress }}" aria-label="Progress"></progress>
+</section>
