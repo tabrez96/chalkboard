@@ -1,6 +1,6 @@
 {% from "_icons.html" import icon %}
 <section id="chapter-progress" class="card progress-card" role="status" data-progress="{{ url_for('chapters.progress', subject_id=subject.id, chapter=key) }}">
-  <h2>Writing the chapter draft</h2>
+  <h2>{% if job.kind == "split_chapter" %}Splitting the chapter into classes{% else %}Writing the chapter draft{% endif %}</h2>
   <p class="muted">This can take a few minutes on the Ollama server. You can leave this page; the draft will be here when it's done.</p>
   <ol class="progress-steps">
     {% for label, state, detail in steps %}

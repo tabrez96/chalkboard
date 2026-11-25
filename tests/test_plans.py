@@ -123,3 +123,42 @@ def test_retrieve_labels_in_rank_order(db_session, subject, chunks):
     assert found[0].chunk_id == chunks[1].id
     assert retrieve(db_session, FakeOllama(), subject.id, "  ") == []
     assert retrieve(db_session, FakeOllama(), subject.id, "x", k=0) == []
+
+
+def test_lessons_version_takes_a_chapter_parent(db_session, subject, chunks):
+    sentence = DraftSentence("Light bends.", (chunks[0].id,), 0, minutes=15)
+    items = [DraftItem("lesson", "Class 1")]
+    chapter = store_version(
+        db_session,
+        subject,
+        "chapter",
+        [DraftSentence("Light.", (chunks[0].id,))],
+        chapter_key="k",
+    )
+    lessons = store_version(
+        db_session,
+        subject,
+        "lessons",
+        [sentence],
+        items=items,
+        chapter_key="k",
+        parent=chapter,
+    )
+    db_session.commit()
+    assert (lessons.kind, lessons.number, lessons.parent_version_id) == (
+        "lessons",
+        1,
+        chapter.id,
+    )
+    assert [s.minutes for s in lessons.sentences] == [15]
+    overview = store_version(db_session, subject, "overview", one(chunks))
+    with pytest.raises(PlanError):
+        store_version(
+            db_session,
+            subject,
+            "lessons",
+            [sentence],
+            items=items,
+            chapter_key="k",
+            parent=overview,
+        )

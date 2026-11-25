@@ -13,18 +13,32 @@ from chalkboard.chapters import (
     APPROVED,
     DRAFT,
     NOT_WRITTEN,
+    SPLIT_KIND,
     added_key,
     chapter_versions,
     title_key,
 )
 from chalkboard.chapters_page import (
     HAS_DRAFT,
+    approve_label,
     check_banner,
     hours_line,
     progress_steps,
+    split_line,
     status_chip,
+    time_ranges,
 )
-from chalkboard.models import Chunk, Job, Source, Subject, SyllabusUnit, Teacher
+from chalkboard.models import (
+    Approval,
+    Chunk,
+    Citation,
+    Job,
+    Sentence,
+    Source,
+    Subject,
+    SyllabusUnit,
+    Teacher,
+)
 from chalkboard.overview import STEP_CHECK
 from chalkboard.overview_page import NOT_LATEST, OLLAMA_DOWN
 from chalkboard.passwords import hash_password
@@ -200,7 +214,7 @@ def test_hours_line():
 
 def test_progress_steps():
     def steps(step, n=1):
-        return progress_steps(SimpleNamespace(step=step), n)
+        return progress_steps(SimpleNamespace(kind="generate_chapter", step=step), n)
 
     first = steps(None)
     assert [s[1] for s in first] == ["current", "todo", "todo"]
@@ -326,7 +340,7 @@ def test_draft_review_renders_sections_citations_and_flags(
         "4 hours · will become 4 classes of 60 min",
     ):
         assert text in page
-    assert "Approve" not in page.replace("Approve the course", "")
+    assert "Approve and split into 4 classes" in page
 
 
 def test_passage_route(signed_in, db_session, sourced):
@@ -494,3 +508,221 @@ def test_other_teachers_subject_404(client, db_session, sourced):
     db_session.commit()
     sign_in(client, "b@example.com", "pw pw pw pw")
     assert client.get(url(sourced)).status_code == 404
+
+
+def store_lessons(db_session, subject, chapter, count=3, flag=False):
+    cid = chunk_id(db_session, subject)
+    steps = [("Warm-up", 10), ("Teach", 20), ("Practice", 20), ("Exit", 10)]
+    sentences = [
+        DraftSentence(
+            f"{text} {i + 1}.",
+            (cid,),
+            i,
+            check_flag=flag and i == 0 and j == 0,
+            check_reason="Source 2: says something else" if flag else None,
+            minutes=m,
+        )
+        for i in range(count)
+        for j, (text, m) in enumerate(steps)
+    ]
+    version = store_version(
+        db_session,
+        subject,
+        "lessons",
+        sentences,
+        items=[DraftItem("lesson", f"Class title {i + 1}") for i in range(count)],
+        chapter_key=chapter.chapter_key,
+        parent=chapter,
+    )
+    db_session.commit()
+    return version
+
+
+def approved_with_lessons(db_session, subject, flag=False):
+    approve_overview(db_session, subject, ["Forces"], Decimal("3.0"))
+    chapter = store_chapter(db_session, subject, KEY)
+    plans.approve(db_session, chapter)
+    db_session.commit()
+    return chapter, store_lessons(db_session, subject, chapter, flag=flag)
+
+
+def split_jobs(db_session):
+    return list(db_session.scalars(select(Job).where(Job.kind == SPLIT_KIND)))
+
+
+def test_split_line_time_ranges_and_approve_label():
+    assert split_line(Decimal("3.0"), 60, 3) == "3 h at 60 min per class = 3 classes"
+    assert split_line(Decimal("1.0"), 60, 1) == "1 h at 60 min per class = 1 class"
+    assert split_line(None, 60, 1) == "1 class of 60 min"
+    assert time_ranges([10, 20, 20, 10]) == ["0–10", "10–30", "30–50", "50–60"]
+    assert time_ranges([]) == []
+    assert (
+        approve_label(Decimal("3.0"), 60, False) == "Approve and split into 3 classes"
+    )
+    assert approve_label(Decimal("3.0"), 60, True) == "Split into 3 classes"
+    assert approve_label(Decimal("1.0"), 60, False) == "Approve and split into 1 class"
+    assert approve_label(None, 45, False) == "Approve and split into 1 class"
+    assert approve_label(Decimal("2.5"), 60, False).endswith("3 classes")
+
+
+def test_status_chip_shows_class_count():
+    approved = entry(APPROVED)
+    assert status_chip(approved, 1, 3) == ("Approved · 3 classes", "chip chip-ok")
+    assert status_chip(approved, 1, 1)[0] == "Approved · 1 class"
+    assert status_chip(approved, 1)[0] == "Approved"
+
+
+def test_split_progress_labels():
+    job = SimpleNamespace(kind=SPLIT_KIND, step="Writing class 2 of 3")
+    steps = progress_steps(job, 1)
+    assert [s[1] for s in steps] == ["done", "current", "todo"]
+    assert steps[1][0] == "Writing the classes" and steps[1][2] == "Class 2 of 3"
+    chapter = SimpleNamespace(kind="generate_chapter", step="Writing class 2 of 3")
+    assert [s[1] for s in progress_steps(chapter, 1)] == ["current", "todo", "todo"]
+
+
+def test_draft_shows_approve_and_split_button(signed_in, db_session, sourced):
+    approve_overview(db_session, sourced, ["Forces"])
+    store_chapter(db_session, sourced, KEY)
+    page = html(signed_in, url(sourced), query_string={"chapter": KEY})
+    assert "Approve and split into 4 classes" in page
+    assert f'formaction="{url(sourced, "/approve")}"' in page
+
+
+def test_approve_records_approval_and_queues_split(signed_in, db_session, sourced):
+    approve_overview(db_session, sourced, ["Forces"], Decimal("3.0"))
+    version = store_chapter(db_session, sourced, KEY)
+    stale = post(signed_in, sourced, "/approve", chapter=KEY, version="2")
+    assert stale.status_code == 303
+    assert NOT_LATEST in html(signed_in, url(sourced), query_string={"chapter": KEY})
+    db_session.expire_all()
+    assert (
+        db_session.scalar(select(Approval).where(Approval.version_id == version.id))
+        is None
+    )
+    assert split_jobs(db_session) == []
+
+    r = post(signed_in, sourced, "/approve", chapter=KEY, version="1")
+    assert r.status_code == 303
+    db_session.expire_all()
+    assert db_session.scalar(select(Approval).where(Approval.version_id == version.id))
+    [job] = split_jobs(db_session)
+    assert job.payload == {
+        "subject_id": sourced.id,
+        "chapter_key": KEY,
+        "chapter_version_id": version.id,
+    }
+    page = html(signed_in, url(sourced), query_string={"chapter": KEY})
+    assert "Splitting the chapter into classes" in page
+    assert "Splitting version 1" in page
+    post(signed_in, sourced, "/approve", chapter=KEY, version="1")
+    assert len(split_jobs(db_session)) == 1
+
+
+def test_approve_refuses_more_than_thirty_classes(signed_in, db_session, sourced):
+    approve_overview(db_session, sourced, ["Forces"], Decimal("40.0"))
+    version = store_chapter(db_session, sourced, KEY)
+    post(signed_in, sourced, "/approve", chapter=KEY, version="1")
+    assert "more than 30 classes" in html(signed_in, url(sourced))
+    db_session.expire_all()
+    assert (
+        db_session.scalar(select(Approval).where(Approval.version_id == version.id))
+        is None
+    )
+    assert split_jobs(db_session) == []
+
+
+def test_approved_without_lessons_offers_the_split_again(
+    signed_in, db_session, sourced
+):
+    approve_overview(db_session, sourced, ["Forces"], Decimal("3.0"))
+    plans.approve(db_session, store_chapter(db_session, sourced, KEY))
+    db_session.commit()
+    page = html(signed_in, url(sourced), query_string={"chapter": KEY})
+    assert "Split into 3 classes" in page and "Approve and split" not in page
+
+
+def test_approved_view_shows_classes(signed_in, db_session, sourced):
+    approved_with_lessons(db_session, sourced)
+    page = html(signed_in, url(sourced), query_string={"chapter": KEY})
+    for text in (
+        "3 h at 60 min per class = 3 classes",
+        "Class 1 · 60 min",
+        "Class 3 · 60 min",
+        "Class title 2",
+        "0–10",
+        "10–30",
+        "50–60",
+        'class="cite',
+        "Read the chapter",
+        "Request changes",
+        "Approved · version 1",
+        "Approved · 3 classes",
+    ):
+        assert text in page
+    assert "Open lesson plan" not in page
+    assert "Next chapter" not in page
+    chapter_view = html(
+        signed_in, url(sourced), query_string={"chapter": KEY, "view": "chapter"}
+    )
+    assert "What a force is" in chapter_view and "What should change?" in chapter_view
+    assert "Split into" not in chapter_view
+
+
+def test_approved_view_links_next_chapter(signed_in, db_session, sourced):
+    approve_overview(db_session, sourced, ["Forces", "Momentum"], Decimal("3.0"))
+    chapter = store_chapter(db_session, sourced, KEY)
+    plans.approve(db_session, chapter)
+    db_session.commit()
+    store_lessons(db_session, sourced, chapter)
+    page = html(signed_in, url(sourced), query_string={"chapter": KEY})
+    assert "Chapter 2 · Momentum" in page and "Write chapter draft" in page
+
+
+def test_open_lesson_plan_link_when_view_exists(
+    app, client, teacher, db_session, sourced
+):
+    app.add_url_rule(
+        "/subjects/<int:subject_id>/today/lessons/<int:item_id>",
+        "today.lesson",
+        lambda **k: "",
+    )
+    sign_in(client)
+    _, lessons = approved_with_lessons(db_session, sourced)
+    page = html(client, url(sourced), query_string={"chapter": KEY})
+    assert page.count("Open lesson plan") == 3
+    first = lessons.items[0].id
+    assert f'href="/subjects/{sourced.id}/today/lessons/{first}"' in page
+
+
+def test_lessons_passage_panel(signed_in, db_session, sourced):
+    _, lessons = approved_with_lessons(db_session, sourced, flag=True)
+    flagged = lessons.sentences[0]
+    cid = flagged.citations[0].id
+    q = {"chapter": KEY, "version": 1, "kind": "lessons"}
+    part = html(signed_in, url(sourced, f"/citations/{cid}"), query_string=q)
+    assert "A force changes the motion" in part and "Ask to fix" not in part
+    assert f'href="{url(sourced)}?chapter={KEY}"' in part
+    page = html(signed_in, url(sourced), query_string={"chapter": KEY, "cite": cid})
+    assert "A force changes the motion" in page and "Ask to fix" not in page
+    bad = {**q, "kind": "overview"}
+    r = signed_in.get(url(sourced, f"/citations/{cid}"), query_string=bad)
+    assert r.status_code == 404
+
+
+def test_request_changes_error_stays_in_chapter_view(signed_in, db_session, sourced):
+    approved_with_lessons(db_session, sourced)
+    r = post(signed_in, sourced, "/request", chapter=KEY, version="1", change=" ")
+    assert r.status_code == 422
+    page = r.get_data(as_text=True)
+    assert "Say what should change" in page and "Class 1 · 60 min" not in page
+
+
+def test_fix_link_keeps_chapter_view(signed_in, db_session, sourced):
+    approve_overview(db_session, sourced, ["Forces"])
+    store_chapter(db_session, sourced, KEY, flag=True)
+    cid = db_session.scalar(select(Sentence.id).where(Sentence.check_flag.is_(True)))
+    cite = db_session.scalar(select(Citation.id).where(Citation.sentence_id == cid))
+    q = {"chapter": KEY, "version": 1}
+    part = html(signed_in, url(sourced, f"/citations/{cite}"), query_string=q)
+    assert "view=chapter" in part and "Ask to fix this sentence" in part

@@ -91,11 +91,12 @@ def store_version(
         raise PlanError(
             "A sentence cites a passage that is not one of the subject's sources"
         )
+    parent_kind = "chapter" if kind == "lessons" else kind
     if parent is not None and (
         parent.subject_id,
         parent.kind,
         parent.chapter_key,
-    ) != (subject.id, kind, chapter_key):
+    ) != (subject.id, parent_kind, chapter_key):
         raise PlanError("The parent version belongs to a different plan")
     number = (
         session.scalar(
@@ -135,6 +136,7 @@ def store_version(
                 version_id=version.id,
                 item_id=version.items[s.item].id if s.item is not None else None,
                 ordinal=i,
+                minutes=s.minutes,
                 text=s.text,
                 check_flag=s.check_flag,
                 check_reason=s.check_reason,

@@ -15,6 +15,7 @@ class DraftSentence:
     )
     check_flag: bool = False
     check_reason: str | None = None
+    minutes: int | None = None  # minutes of a timed lesson step
 
 
 SENTENCES_SCHEMA = {

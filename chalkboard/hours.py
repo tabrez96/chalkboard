@@ -26,6 +26,31 @@ def hours_for(classes: int, class_minutes: int) -> Decimal:
     return Decimal(tenths) / 10
 
 
+def lesson_minutes(hours: Decimal, class_minutes: int) -> list[int]:
+    """Minutes of each class: full classes, then the remainder as a shorter last class. len == class_count."""
+    total = int(hours * 60)
+    full, rest = divmod(total, class_minutes)
+    return [class_minutes] * full + ([rest] if rest else [])
+
+
+def fit_minutes(requested: Sequence[int], total: int) -> list[int]:
+    """Scale the model's step minutes so they sum exactly to total; every step gets at least 1 minute."""
+    n = len(requested)
+    if n == 0:
+        return []
+    if n > total:
+        raise ValueError("More steps than minutes")
+    weights = [max(1, r) for r in requested]
+    extra = total - n
+    w = sum(weights)
+    counts = [1 + extra * x // w for x in weights]
+    rems = [extra * x % w for x in weights]
+    leftover = total - sum(counts)
+    for i in sorted(range(n), key=lambda i: (-rems[i], i))[:leftover]:
+        counts[i] += 1
+    return counts
+
+
 def fit_classes(
     weights: Sequence[float], class_minutes: int, term_classes: int | None
 ) -> list[int]:

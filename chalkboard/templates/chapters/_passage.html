@@ -1,7 +1,7 @@
 {% from "_icons.html" import icon %}
 <div class="passage-head">
   {% if passage.flagged %}<span class="chip chip-flag">Check this</span>{% else %}<span class="summary-label">Passage</span>{% endif %}
-  <a class="icon-btn passage-close" href="{{ url_for('chapters.index', subject_id=subject.id, chapter=key, version=version.number) }}" aria-label="Close passage">{{ icon('close') }}</a>
+  <a class="icon-btn passage-close" href="{{ url_for('chapters.index', subject_id=subject.id, chapter=key, version=version.number) if passage_kind != 'lessons' else url_for('chapters.index', subject_id=subject.id, chapter=key) }}" aria-label="Close passage">{{ icon('close') }}</a>
 </div>
 {% if passage.chunk %}
 <p><strong>Source {{ passage.citation.source_number }}, passage {{ passage.chunk.position + 1 }}</strong></p>
@@ -12,5 +12,5 @@
 {% endif %}
 {% if passage.flagged %}
 <p class="muted">{{ passage.sentence.check_reason }}</p>
-{% if not read_only %}<a class="btn" href="{{ url_for('chapters.index', subject_id=subject.id, chapter=key, fix=passage.sentence.id) ~ '#change' }}">Ask to fix this sentence</a>{% endif %}
+{% if not read_only and passage_kind != 'lessons' %}<a class="btn" href="{{ url_for('chapters.index', subject_id=subject.id, chapter=key, view='chapter', fix=passage.sentence.id) ~ '#change' }}">Ask to fix this sentence</a>{% endif %}
 {% endif %}

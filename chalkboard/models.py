@@ -304,7 +304,7 @@ class Chunk(Base):
     )
 
 
-PLAN_KINDS = ("overview", "chapter")
+PLAN_KINDS = ("overview", "chapter", "lessons")
 ITEM_KINDS = ("chapter", "section", "lesson")
 
 
@@ -341,7 +341,7 @@ class PlanVersion(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("kind IN ('overview', 'chapter')", name="kind"),
+        CheckConstraint("kind IN ('overview', 'chapter', 'lessons')", name="kind"),
         CheckConstraint(
             "(kind = 'overview') = (chapter_key IS NULL)", name="chapter_key"
         ),
@@ -389,6 +389,8 @@ class Sentence(Base):
     )
     # 0-based order within the version.
     ordinal: Mapped[int]
+    # Minutes of a timed lesson step; None for other plans.
+    minutes: Mapped[int | None]
     text: Mapped[str] = mapped_column(Text)
     # Set by the checker: a cited passage does not support the sentence ("Check this").
     check_flag: Mapped[bool] = mapped_column(server_default=sa.false())
@@ -397,7 +399,10 @@ class Sentence(Base):
         order_by="Citation.id", cascade="all, delete-orphan", passive_deletes=True
     )
 
-    __table_args__ = (UniqueConstraint("version_id", "ordinal"),)
+    __table_args__ = (
+        CheckConstraint("minutes IS NULL OR minutes >= 1", name="minutes"),
+        UniqueConstraint("version_id", "ordinal"),
+    )
 
 
 class Citation(Base):
