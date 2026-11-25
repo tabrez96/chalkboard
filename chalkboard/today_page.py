@@ -2,15 +2,30 @@
 
 from datetime import datetime
 
-from flask import Blueprint, abort, render_template, request, url_for
+from flask import Blueprint, abort, g, redirect, render_template, request, url_for
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
+from chalkboard import assistant
 from chalkboard.chapters_page import time_ranges
 from chalkboard.db import get_session
 from chalkboard.lessons import placement, term_slots
-from chalkboard.models import Chunk, Citation, PlanItem, PlanVersion, Sentence, Source
-from chalkboard.overview_page import amber_citation_ids, load_passage
+from chalkboard.models import (
+    ChatMessage,
+    Chunk,
+    Citation,
+    Job,
+    PlanItem,
+    PlanVersion,
+    Sentence,
+    Source,
+)
+from chalkboard.overview_page import (
+    amber_citation_ids,
+    checked_post,
+    load_passage,
+    ollama_down,
+)
 from chalkboard.placement import (
     Placed,
     class_line,
@@ -84,6 +99,38 @@ def source_rows(session, steps: list[Sentence]) -> list[dict]:
     return [rows[n] for n in sorted(rows)]
 
 
+def chat_context(session, item_id: int, **extra) -> dict:
+    messages = assistant.lesson_messages(session, item_id)
+    return {
+        "messages": messages,
+        # Questions without an answer yet get typing dots.
+        "answered": {m.question_id for m in messages if m.question_id},
+        "jobs": {
+            j.id: j
+            for j in session.scalars(
+                select(Job).where(Job.id.in_([m.job_id for m in messages if m.job_id]))
+            )
+        },
+        "ollama_down": ollama_down(),
+        "question_max": assistant.QUESTION_MAX,
+        "chat_error": None,
+        **extra,
+    }
+
+
+def chat_partial(subject, item_id: int, **extra):
+    return render_template(
+        "today/_assistant.html",
+        subject=subject,
+        item_id=item_id,
+        **chat_context(get_session(), item_id, **extra),
+    )
+
+
+def is_htmx() -> bool:
+    return request.headers.get("HX-Request") == "true"
+
+
 def lesson_context(subject, placed: list[Placed], current: Placed, cite_id) -> dict:
     session = get_session()
     item_id = current.lesson.item_id
@@ -105,6 +152,7 @@ def lesson_context(subject, placed: list[Placed], current: Placed, cite_id) -> d
         passage = None
     when = current.when
     return {
+        **chat_context(session, item_id),
         "mode": "lesson",
         "subject": subject,
         "active": "today.show",
@@ -174,4 +222,87 @@ def passage(subject_id: int, item_id: int, citation_id: int):
         abort(404)
     return render_template(
         "today/_passage.html", passage=found, subject=subject, item_id=item_id
+    )
+
+
+@bp.post("/lessons/<int:item_id>/chat")
+def ask(subject_id: int, item_id: int):
+    subject = own_subject(subject_id)
+    checked_post()
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    back = url_for("today.lesson", subject_id=subject.id, item_id=item_id)
+    text = request.form.get("question", "")
+    if ollama_down():
+        return chat_partial(subject, item_id) if is_htmx() else redirect(back, 303)
+    try:
+        assistant.ask(session, g.teacher.id, subject.id, item_id, text)
+    except ValueError as exc:
+        if is_htmx():
+            # 200, not 422: HTMX doesn't swap error responses.
+            return chat_partial(subject, item_id, chat_error=str(exc), question=text)
+        return redirect(back + "#assistant", 303)
+    session.commit()
+    if is_htmx():
+        return chat_partial(subject, item_id)
+    return redirect(back + "#assistant", 303)
+
+
+def own_question(session, subject, item_id: int, question_id: int) -> ChatMessage:
+    question = session.get(ChatMessage, question_id)
+    if (
+        question is None
+        or question.role != "teacher"
+        or question.subject_id != subject.id
+        or question.item_id != item_id
+    ):
+        abort(404)
+    return question
+
+
+@bp.get("/lessons/<int:item_id>/chat/<int:question_id>")
+def chat_answer(subject_id: int, item_id: int, question_id: int):
+    subject = own_subject(subject_id)
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    question = own_question(session, subject, item_id, question_id)
+    answer = assistant.pending_answer(session, question)
+    if answer is not None:
+        return render_template(
+            "today/_message.html", message=answer, subject=subject, item_id=item_id
+        )
+    job = session.get(Job, question.job_id) if question.job_id else None
+    return render_template(
+        "today/_message.html",
+        pending=question,
+        job=job,
+        subject=subject,
+        item_id=item_id,
+    )
+
+
+@bp.get("/lessons/<int:item_id>/chat/<int:message_id>/chunks/<int:chunk_id>")
+def chat_passage(subject_id: int, item_id: int, message_id: int, chunk_id: int):
+    subject = own_subject(subject_id)
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    message = session.get(ChatMessage, message_id)
+    if (
+        message is None
+        or message.role != "assistant"
+        or message.subject_id != subject.id
+        or message.item_id != item_id
+    ):
+        abort(404)
+    cites = [c for part in message.parts for c in part["cites"] if c[0] == chunk_id]
+    if not cites:
+        abort(404)
+    chunk = session.get(Chunk, chunk_id)
+    return render_template(
+        "today/_chat_passage.html",
+        number=cites[0][1],
+        chunk=chunk,
+        source=session.get(Source, chunk.source_id) if chunk else None,
+        subject=subject,
+        item_id=item_id,
     )

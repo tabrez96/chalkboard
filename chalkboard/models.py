@@ -449,3 +449,48 @@ class AddedChapter(Base):
     title: Mapped[str] = mapped_column(String(200))
     hours: Mapped[Decimal | None] = mapped_column(Numeric(4, 1))
     notes: Mapped[str] = mapped_column(Text, server_default="")
+
+
+CHAT_ROLES = ("teacher", "assistant")
+CHAT_LABELS = ("", "from_sources", "not_in_sources")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+    )
+    # The lesson (a PlanItem of kind 'lesson') the chat belongs to.
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("plan_items.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    role: Mapped[str] = mapped_column(String(9))
+    # "sources" for now; "web" is added with web search.
+    scope: Mapped[str] = mapped_column(String(7), server_default="sources")
+    # Stored as typed; RedactingClient removes names only on the way to the model.
+    text: Mapped[str] = mapped_column(Text)
+    # "" for the teacher's questions.
+    label: Mapped[str] = mapped_column(String(14), server_default="")
+    # Answer sentences: [{"text": str, "cites": [[chunk_id, source_number], ...]}]; [] otherwise.
+    parts: Mapped[list] = mapped_column(JSONB, server_default=sa.text("'[]'::jsonb"))
+    # On a question: the job writing its answer.
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL")
+    )
+    # On an answer: the question it answers (one answer per question).
+    question_id: Mapped[int | None] = mapped_column(
+        ForeignKey("chat_messages.id", ondelete="CASCADE"), unique=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("role IN ('teacher', 'assistant')", name="role"),
+        CheckConstraint("scope IN ('sources')", name="scope"),
+        CheckConstraint(
+            "label IN ('', 'from_sources', 'not_in_sources')", name="label"
+        ),
+    )

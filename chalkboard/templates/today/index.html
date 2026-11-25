@@ -21,6 +21,7 @@
     {% else %}<span class="icon-btn" aria-disabled="true" aria-label="Next class">{{ icon('chevron-right', 18) }}</span>{% endif %}
   </div>
 </header>
+<div class="today-grid">
 <div class="source-stack">
   <section class="card lesson-plan" aria-labelledby="plan-title">
     <div class="card-head">
@@ -49,6 +50,8 @@
   <div id="passage-panel" class="card passage-panel" tabindex="-1" aria-label="Passage"{% if not passage %} hidden{% endif %}>
     {% if passage %}{% include "today/_passage.html" %}{% endif %}
   </div>
+</div>
+{% include "today/_assistant.html" %}
 </div>
 {% else %}
 {% set next = view.next %}
