@@ -1,10 +1,12 @@
 """The Chapters page: chapter list, next chapter card, draft review and request changes."""
 
+from dataclasses import dataclass
 from decimal import Decimal
 
 from flask import (
     Blueprint,
     abort,
+    current_app,
     flash,
     redirect,
     render_template,
@@ -17,12 +19,14 @@ from sqlalchemy.orm import selectinload
 from wtforms import DecimalField, StringField, TextAreaField
 from wtforms.validators import DataRequired, Length, NumberRange, Optional
 
-from chalkboard import jobs
+from chalkboard import jobs, plans
 from chalkboard.auth import current_teacher
 from chalkboard.chapters import (
     APPROVED,
     DRAFT,
     NOTES_MAX,
+    PAGE_KINDS,
+    SPLIT_KIND,
     TITLE_MAX,
     ChapterEntry,
     ChapterError,
@@ -38,7 +42,16 @@ from chalkboard.chapters import (
 )
 from chalkboard.db import get_session
 from chalkboard.hours import class_count
-from chalkboard.models import Approval, Job, PlanVersion, Sentence, Source, Subject
+from chalkboard.lessons import enqueue_split, lessons_for, split_minutes
+from chalkboard.models import (
+    Approval,
+    Job,
+    PlanItem,
+    PlanVersion,
+    Sentence,
+    Source,
+    Subject,
+)
 from chalkboard.overview import STEP_CHECK
 from chalkboard.overview_page import (
     NOT_LATEST,
@@ -57,9 +70,14 @@ NO_OVERVIEW = "Approve the course overview first"
 HAS_DRAFT = "This chapter already has a draft. Ask for changes on the draft instead."
 
 
-def status_chip(entry: ChapterEntry, number: int | None) -> tuple[str, str]:
+def status_chip(
+    entry: ChapterEntry, number: int | None, classes: int | None = None
+) -> tuple[str, str]:
     """(label, css class) for the list chip; number is the latest version number."""
     if entry.status == APPROVED:
+        if classes:
+            noun = "class" if classes == 1 else "classes"
+            return f"Approved · {classes} {noun}", "chip chip-ok"
         return "Approved", "chip chip-ok"
     if entry.status == DRAFT:
         return f"Draft v{number}", "chip chip-draft"
@@ -91,18 +109,84 @@ def hours_line(hours: Decimal | None, class_minutes: int) -> str:
     return f"{line} · will become {count} {noun} of {class_minutes} min"
 
 
+def class_noun(count: int) -> str:
+    return "class" if count == 1 else "classes"
+
+
+def split_line(hours: Decimal | None, class_minutes: int, count: int) -> str:
+    """'3 h at 60 min per class = 3 classes'; without hours '1 class of 60 min'."""
+    if hours is None:
+        return f"{count} {class_noun(count)} of {class_minutes} min"
+    return f"{format_hours(hours)} at {class_minutes} min per class = {count} {class_noun(count)}"
+
+
+def time_ranges(minutes: list[int]) -> list[str]:
+    """Cumulative ranges: [10, 20, 20, 10] -> ['0–10', '10–30', '30–50', '50–60']."""
+    ranges = []
+    start = 0
+    for m in minutes:
+        ranges.append(f"{start}–{start + m}")
+        start += m
+    return ranges
+
+
+def approve_label(hours: Decimal | None, class_minutes: int, approved: bool) -> str:
+    count = len(split_minutes(hours, class_minutes))
+    lead = "Split into" if approved else "Approve and split into"
+    return f"{lead} {count} {class_noun(count)}"
+
+
+@dataclass(frozen=True)
+class LessonCard:
+    number: int
+    title: str
+    minutes: int
+    steps: list[tuple[str, Sentence]]
+    url: str | None
+
+
+def lesson_url(subject, item: PlanItem) -> str | None:
+    """The class's lesson plan page; None until that page exists."""
+    if "today.lesson" not in current_app.view_functions:
+        return None
+    return url_for("today.lesson", subject_id=subject.id, item_id=item.id)
+
+
+def lesson_cards(subject, version: PlanVersion) -> list[LessonCard]:
+    """One card per class; the version is loaded with its items and sentences."""
+    cards = []
+    for number, item in enumerate(version.items, 1):
+        steps = sorted(
+            (s for s in version.sentences if s.item_id == item.id),
+            key=lambda s: s.ordinal,
+        )
+        ranges = time_ranges([s.minutes or 0 for s in steps])
+        cards.append(
+            LessonCard(
+                number,
+                item.title,
+                sum(s.minutes or 0 for s in steps),
+                list(zip(ranges, steps, strict=True)),
+                lesson_url(subject, item),
+            )
+        )
+    return cards
+
+
 def progress_steps(job: Job, source_count: int) -> list[tuple[str, str, str]]:
     noun = "source" if source_count == 1 else "sources"
+    splitting = job.kind == SPLIT_KIND
     labels = (
         f"Finding passages in your {source_count} {noun}",
-        "Writing the sections",
+        "Writing the classes" if splitting else "Writing the sections",
         "Checking every sentence against its source",
     )
+    prefix = "Writing class " if splitting else "Writing section "
     step = job.step or ""
     detail = ""
     if step == STEP_CHECK:
         states = ("done", "done", "current")
-    elif step.startswith("Writing section "):
+    elif step.startswith(prefix):
         states = ("done", "current", "todo")
         detail = step.removeprefix("Writing ").capitalize()
     else:
@@ -181,6 +265,7 @@ def page_context(
     change_text: str = "",
     change_error: str = "",
     add_form: AddChapterForm | None = None,
+    view: str | None = None,
 ) -> dict:
     session = get_session()
     entries = chapter_list(session, subject)
@@ -193,8 +278,20 @@ def page_context(
             )
         ).all()
     )
+    classes = {
+        parent_id: len(v.items)
+        for parent_id, v in lessons_for(
+            session, [e.latest_version_id for e in entries if e.status == APPROVED]
+        ).items()
+    }
     rows = [
-        (i + 1, e, status_chip(e, numbers.get(e.latest_version_id)))
+        (
+            i + 1,
+            e,
+            status_chip(
+                e, numbers.get(e.latest_version_id), classes.get(e.latest_version_id)
+            ),
+        )
         for i, e in enumerate(entries)
     ]
     upcoming = next_chapter(entries)
@@ -208,7 +305,7 @@ def page_context(
     job = None
     versions: list[PlanVersion] = []
     if selected:
-        job = latest_chapter_job(session, subject.id, selected.key)
+        job = latest_chapter_job(session, subject.id, selected.key, PAGE_KINDS)
         if selected.latest_version_id:
             versions = chapter_versions(session, subject.id, selected.key)
     latest = versions[0] if versions else None
@@ -221,10 +318,18 @@ def page_context(
         else None
     )
 
+    lessons = None
+    if latest is not None and session.scalar(
+        select(Approval.id).where(Approval.version_id == latest.id)
+    ):
+        lessons = lessons_for(session, [latest.id]).get(latest.id)
+
     if not entries:
         mode = "empty"
     elif generating:
         mode = "generating"
+    elif key and lessons and view != "chapter" and version_number is None:
+        mode = "lessons"
     elif key and latest:
         mode = "draft"
     else:
@@ -238,6 +343,23 @@ def page_context(
     banner = show_it = passage = None
     line = ""
     change = change_text
+    cards: list[LessonCard] = []
+    split = approve_text = ""
+    if mode == "lessons":
+        version = latest
+        lessons = session.scalars(
+            select(PlanVersion)
+            .where(PlanVersion.id == lessons.id)
+            .options(
+                selectinload(PlanVersion.items),
+                selectinload(PlanVersion.sentences).selectinload(Sentence.citations),
+            )
+        ).one()
+        cards = lesson_cards(subject, lessons)
+        split = split_line(selected.hours, subject.class_minutes, len(cards))
+        amber_ids = amber_citation_ids(lessons.sentences)
+        if cite_id:
+            passage = load_passage(session, lessons, cite_id)
     if mode == "draft":
         version = latest
         if version_number is not None:
@@ -291,6 +413,10 @@ def page_context(
                     if s.id == fix_id:
                         change = fix_prefill(item.title, s.text)
         line = hours_line(selected.hours, subject.class_minutes)
+        if not read_only and (version.id not in approved_ids or lessons is None):
+            approve_text = approve_label(
+                selected.hours, subject.class_minutes, version.id in approved_ids
+            )
 
     values = write_values
     if values is None and selected:
@@ -322,6 +448,12 @@ def page_context(
         "show_it": show_it,
         "passage": passage,
         "hours_line": line,
+        "cards": cards,
+        "split_line": split,
+        "lessons": lessons,
+        "approve_text": approve_text,
+        "passage_kind": "lessons" if mode == "lessons" else "chapter",
+        "upcoming_number": entries.index(upcoming) + 1 if upcoming else None,
         "next_number": (latest.number if latest else 0) + 1,
         "change_text": change,
         "change_error": change_error,
@@ -353,6 +485,7 @@ def index(subject_id: int):
         version_number=args.get("version", type=int),
         cite_id=args.get("cite", type=int),
         fix_id=args.get("fix", type=int),
+        view=args.get("view"),
     )
 
 
@@ -361,7 +494,7 @@ def progress(subject_id: int):
     subject = own_subject(subject_id)
     session = get_session()
     key = request.args.get("chapter", "")
-    job = active_chapter_job(session, subject.id, key)
+    job = active_chapter_job(session, subject.id, key, PAGE_KINDS)
     if job is None:
         return "", 204
     return render_template(
@@ -378,7 +511,10 @@ def passage(subject_id: int, citation_id: int):
     subject = own_subject(subject_id)
     session = get_session()
     key = request.args.get("chapter", "")
-    versions = chapter_versions(session, subject.id, key)
+    kind = request.args.get("kind", "chapter")
+    if kind not in ("chapter", "lessons"):
+        abort(404)
+    versions = chapter_versions(session, subject.id, key, kind)
     number = request.args.get("version", type=int)
     version = next((v for v in versions if v.number == number), None)
     if version is None:
@@ -392,7 +528,8 @@ def passage(subject_id: int, citation_id: int):
         subject=subject,
         version=version,
         key=key,
-        read_only=version.id != versions[0].id,
+        read_only=kind == "lessons" or version.id != versions[0].id,
+        passage_kind=kind,
     )
 
 
@@ -463,9 +600,45 @@ def request_changes(subject_id: int):
         )
     except ChapterError as exc:
         return render_page(
-            subject, 422, key=key, change_text=change, change_error=str(exc)
+            subject,
+            422,
+            key=key,
+            change_text=change,
+            change_error=str(exc),
+            view="chapter",
         )
     session.commit()
+    return back(subject, key)
+
+
+@bp.post("/approve")
+def approve(subject_id: int):
+    subject = own_subject(subject_id)
+    checked_post()
+    session = get_session()
+    key = request.form.get("chapter", "")
+    # Same subject lock as enqueue_chapter, taken before reading the latest version.
+    session.execute(
+        select(Subject.id).where(Subject.id == subject.id).with_for_update()
+    )
+    find_entry(session, subject, key)
+    if ollama_down():
+        flash(OLLAMA_DOWN, "error")
+        return back(subject, key)
+    versions = chapter_versions(session, subject.id, key)
+    if not versions or request.form.get("version", type=int) != versions[0].number:
+        flash(NOT_LATEST, "error")
+        return back(subject, key)
+    latest = versions[0]
+    try:
+        plans.approve(session, latest)
+        enqueue_split(session, subject, latest)
+    except ChapterError as exc:
+        session.rollback()
+        flash(str(exc), "error")
+        return back(subject, key)
+    session.commit()
+    flash(f"Approved version {latest.number}")
     return back(subject, key)
 
 

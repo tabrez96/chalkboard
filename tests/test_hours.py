@@ -1,10 +1,14 @@
 from datetime import date, time
 from decimal import Decimal
 
+import pytest
+
 from chalkboard.hours import (
     class_count,
     fit_classes,
+    fit_minutes,
     hours_for,
+    lesson_minutes,
     spoken_duration,
     summarise,
 )
@@ -123,3 +127,31 @@ def test_spoken_duration():
     assert spoken_duration(60) == "1 hour"
     assert spoken_duration(45) == "45 minutes"
     assert spoken_duration(90) == "1 hour 30 minutes"
+
+
+def test_lesson_minutes():
+    assert lesson_minutes(Decimal("3.0"), 60) == [60, 60, 60]
+    assert lesson_minutes(Decimal("2.5"), 60) == [60, 60, 30]
+    assert lesson_minutes(Decimal("0.5"), 60) == [30]
+    assert lesson_minutes(Decimal("1.5"), 45) == [45, 45]
+    for tenths in (1, 5, 10, 25, 33, 999):
+        for length in (30, 45, 60, 90):
+            hours = Decimal(tenths) / 10
+            minutes = lesson_minutes(hours, length)
+            assert len(minutes) == class_count(hours, length)
+            assert sum(minutes) == tenths * 6
+            assert all(0 < m <= length for m in minutes)
+
+
+def test_fit_minutes():
+    assert fit_minutes([10, 20, 20, 10], 60) == [10, 20, 20, 10]
+    assert fit_minutes([5, 5], 30) == [15, 15]
+    assert fit_minutes([], 60) == []
+    odd = fit_minutes([0, -3, 7], 9)
+    assert len(odd) == 3 and sum(odd) == 9 and min(odd) >= 1
+    for requested in ([1], [3, 3, 3], [50, 1, 1, 1], [7, 0, 0, 0, 0, 0]):
+        for total in (len(requested), 30, 45, 61):
+            fitted = fit_minutes(requested, total)
+            assert sum(fitted) == total and min(fitted) >= 1
+    with pytest.raises(ValueError):
+        fit_minutes([1, 1, 1], 2)

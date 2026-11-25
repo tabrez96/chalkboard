@@ -27,6 +27,8 @@ from chalkboard.plans import NO_SENTENCES, DraftItem, PlanError, store_version
 from chalkboard.syllabus import current_syllabus, unit_rows
 
 KIND = "generate_chapter"
+SPLIT_KIND = "split_chapter"
+PAGE_KINDS = (KIND, SPLIT_KIND)
 SECTIONS_K = 12
 MAX_SECTIONS = 8
 MAX_SENTENCES = 4
@@ -182,14 +184,16 @@ def next_chapter(entries: list[ChapterEntry]) -> ChapterEntry | None:
     return next((e for e in entries if e.status != APPROVED), None)
 
 
-def chapter_versions(session: Session, subject_id: int, key: str) -> list[PlanVersion]:
+def chapter_versions(
+    session: Session, subject_id: int, key: str, kind: str = "chapter"
+) -> list[PlanVersion]:
     """Newest first."""
     return list(
         session.scalars(
             select(PlanVersion)
             .where(
                 PlanVersion.subject_id == subject_id,
-                PlanVersion.kind == "chapter",
+                PlanVersion.kind == kind,
                 PlanVersion.chapter_key == key,
             )
             .order_by(PlanVersion.number.desc())
@@ -236,11 +240,13 @@ def add_chapter(
     return row
 
 
-def active_chapter_job(session: Session, subject_id: int, key: str) -> Job | None:
+def active_chapter_job(
+    session: Session, subject_id: int, key: str, kinds: tuple[str, ...] = (KIND,)
+) -> Job | None:
     return session.scalar(
         select(Job)
         .where(
-            Job.kind == KIND,
+            Job.kind.in_(kinds),
             Job.state.in_(ACTIVE_STATES),
             Job.payload["subject_id"].as_integer() == subject_id,
             Job.payload["chapter_key"].as_string() == key,
@@ -250,12 +256,14 @@ def active_chapter_job(session: Session, subject_id: int, key: str) -> Job | Non
     )
 
 
-def latest_chapter_job(session: Session, subject_id: int, key: str) -> Job | None:
+def latest_chapter_job(
+    session: Session, subject_id: int, key: str, kinds: tuple[str, ...] = (KIND,)
+) -> Job | None:
     """The newest job for this chapter in any state (for the progress and error states)."""
     return session.scalar(
         select(Job)
         .where(
-            Job.kind == KIND,
+            Job.kind.in_(kinds),
             Job.payload["subject_id"].as_integer() == subject_id,
             Job.payload["chapter_key"].as_string() == key,
         )

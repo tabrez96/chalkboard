@@ -11,6 +11,7 @@ from chalkboard import (
     cli,
     health,
     jobs,
+    lessons,  # noqa: F401  (registers the split_chapter job)
     overview,  # noqa: F401  (registers the generate_overview job)
     overview_page,
     settings_page,

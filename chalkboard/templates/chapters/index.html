@@ -6,11 +6,16 @@
 <header class="page-head page-head-row">
   <div>
     <p class="eyebrow">{{ subject.name }}</p>
-    <h1>{% if mode == "draft" %}{{ selected.title }}{% else %}Chapters{% endif %}</h1>
+    <h1>{% if mode == "draft" or mode == "lessons" %}{{ selected.title }}{% else %}Chapters{% endif %}</h1>
   </div>
   <div class="head-actions">
     {% if mode == "generating" %}
-    <span class="chip chip-primary">Writing version {{ next_number }}</span>
+    {% if job.kind == "split_chapter" %}<span class="chip chip-primary">Splitting version {{ latest.number }}</span>
+    {% else %}<span class="chip chip-primary">Writing version {{ next_number }}</span>{% endif %}
+    {% elif mode == "lessons" %}
+    <span class="chip chip-ok">Approved · version {{ version.number }}</span>
+    <a class="btn" href="{{ index_url(chapter=selected.key, view='chapter') }}">Read the chapter</a>
+    <a class="btn" href="{{ index_url(chapter=selected.key, view='chapter') ~ '#change' }}">Request changes</a>
     {% elif mode == "draft" %}
     {% if version.id in approved_ids %}<span class="chip chip-ok">Approved · version {{ version.number }}</span>
     {% else %}<span class="chip chip-draft">Draft · version {{ version.number }}</span>{% endif %}
@@ -82,6 +87,41 @@
       {% endif %}
       {% endif %}
     </section>
+    {% elif mode == "lessons" %}
+    <p class="muted small split-line">{{ split_line }}</p>
+    <div class="class-cards">
+      {% for c in cards %}
+      <article class="card class-card" aria-labelledby="class-{{ c.number }}">
+        <span class="chip chip-ok">Class {{ c.number }} · {{ c.minutes }} min</span>
+        <h2 id="class-{{ c.number }}" class="class-title">{{ c.title }}</h2>
+        <ol class="class-steps">
+          {% for range, s in c.steps %}
+          <li>
+            <span class="step-time">{{ range }}</span>
+            <span class="step-text" id="sentence-{{ s.id }}">{{ s.text }}
+              {%- for cite in s.citations %} <a class="cite{% if cite.id in amber_ids %} is-flag{% endif %}" href="{{ index_url(chapter=selected.key, cite=cite.id) ~ '#passage-panel' }}" data-panel="{{ url_for('chapters.passage', subject_id=subject.id, citation_id=cite.id, chapter=selected.key, version=lessons.number, kind='lessons') }}" aria-label="Citation, source {{ cite.source_number }}">{{ cite.source_number }}</a>{% endfor %}
+              {%- if s.check_flag %} <span class="chip chip-flag">Check this</span>{% endif %}</span>
+          </li>
+          {% endfor %}
+        </ol>
+        {% if c.url %}<a href="{{ c.url }}">Open lesson plan</a>{% endif %}
+      </article>
+      {% endfor %}
+    </div>
+    <div id="passage-panel" class="card passage-panel" tabindex="-1" aria-label="Passage"{% if not passage %} hidden{% endif %}>
+      {% if passage %}{% include "chapters/_passage.html" %}{% endif %}
+    </div>
+    {% if upcoming and upcoming.key != selected.key %}
+    <section class="card next-card" aria-labelledby="next-title">
+      <div class="next-head">
+        <div>
+          <p class="muted">Next chapter</p>
+          <h2 id="next-title">Chapter {{ upcoming_number }} · {{ upcoming.title }}</h2>
+        </div>
+        <a class="btn btn-primary" href="{{ index_url(chapter=upcoming.key) }}">{% if upcoming.latest_version_id %}Review draft{% else %}Write chapter draft{% endif %}</a>
+      </div>
+    </section>
+    {% endif %}
     {% elif mode == "draft" %}
     {% if banner %}
     <div class="banner banner-warning" role="status">
@@ -118,6 +158,9 @@
         <p class="muted">This writes version {{ next_number }}. The current version is kept.</p>
         <div class="request-actions">
           <button type="submit" class="btn"{% if ollama_down %} disabled{% endif %}>Request changes</button>
+          {% if approve_text %}
+          <button type="submit" class="btn btn-primary" formaction="{{ url_for('chapters.approve', subject_id=subject.id) }}"{% if ollama_down %} disabled{% endif %}>{{ icon('check') }} {{ approve_text }}</button>
+          {% endif %}
         </div>
       </div>
     </form>

@@ -2139,3 +2139,42 @@ a.unit-cite {
 .draft-card .small + .section-title {
   margin-top: 8px;
 }
+
+.split-line {
+  margin: 0;
+}
+
+.class-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.class-card {
+  padding: 18px;
+}
+
+.class-title {
+  margin: 12px 0 10px;
+  font-family: var(--font-head);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.class-steps {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.class-steps li {
+  display: grid;
+  grid-template-columns: 5ch 1fr;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.step-time {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
