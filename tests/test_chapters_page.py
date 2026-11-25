@@ -660,7 +660,6 @@ def test_approved_view_shows_classes(signed_in, db_session, sourced):
         "Approved · 3 classes",
     ):
         assert text in page
-    assert "Open lesson plan" not in page
     assert "Next chapter" not in page
     chapter_view = html(
         signed_in, url(sourced), query_string={"chapter": KEY, "view": "chapter"}
@@ -682,11 +681,6 @@ def test_approved_view_links_next_chapter(signed_in, db_session, sourced):
 def test_open_lesson_plan_link_when_view_exists(
     app, client, teacher, db_session, sourced
 ):
-    app.add_url_rule(
-        "/subjects/<int:subject_id>/today/lessons/<int:item_id>",
-        "today.lesson",
-        lambda **k: "",
-    )
     sign_in(client)
     _, lessons = approved_with_lessons(db_session, sourced)
     page = html(client, url(sourced), query_string={"chapter": KEY})

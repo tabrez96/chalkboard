@@ -1,5 +1,5 @@
 {% from "_icons.html" import icon %}
-{% macro subject_card(s) %}
+{% macro subject_card(s, plan) %}
 {% set times = times_of(s) %}
 {% set line = board_line(s.board, s.state_board, s.grade) %}
 <article class="card subject-card">
@@ -13,10 +13,16 @@
     <a class="icon-btn" href="{{ url_for('subjects.settings', subject_id=s.id) }}" aria-label="Subject settings for {{ s.name }}">{{ icon('gear', 18) }}</a>
   </header>
   <p class="muted subject-progress">No chapters yet</p>
+  {% if plan.wont_fit %}<a class="chip chip-flag" href="{{ url_for('overview.show', subject_id=s.id) }}">Chapter {{ plan.wont_fit }} won't fit the term</a>{% endif %}
   <div class="subject-next">
     <p class="muted">Next class</p>
+    {% if plan.next_when %}
+    <p><strong>{{ plan.next_when }}</strong></p>
+    <p class="muted">{{ plan.next_title }}</p>
+    {% else %}
     <p><strong>Not planned yet</strong></p>
     {% if not times %}<a href="{{ url_for('subjects.settings', subject_id=s.id) }}">Add class times</a>{% else %}<p class="muted">No lessons yet</p>{% endif %}
+    {% endif %}
   </div>
 </article>
 {% endmacro %}

@@ -20,6 +20,7 @@ from chalkboard import (
     sources_page,
     students,
     subjects,
+    today_page,
 )
 from chalkboard.config import Settings
 from chalkboard.db import init_db
@@ -47,6 +48,7 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.register_blueprint(sources_page.bp)
     app.register_blueprint(overview_page.bp)
     app.register_blueprint(chapters_page.bp)
+    app.register_blueprint(today_page.bp)
     app.register_blueprint(settings_page.bp)
     app.register_blueprint(jobs.bp)
     shell.init_shell(app)

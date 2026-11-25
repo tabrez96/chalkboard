@@ -1,9 +1,10 @@
 """Lesson plans: split an approved chapter into classes with timed, cited steps (the split_chapter job)."""
 
 import dataclasses
+from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from chalkboard import jobs
@@ -12,6 +13,7 @@ from chalkboard.ai.check import check_sentences
 from chalkboard.ai.retrieve import TOP_K, retrieve
 from chalkboard.ai.write import DraftSentence, format_passages
 from chalkboard.chapters import (
+    APPROVED,
     NOT_IN_PLAN,
     SPLIT_KIND,
     TITLE_MAX,
@@ -21,9 +23,11 @@ from chalkboard.chapters import (
 )
 from chalkboard.hours import fit_minutes, lesson_minutes
 from chalkboard.jobs import JobContext
-from chalkboard.models import Approval, Job, PlanVersion, Subject
+from chalkboard.models import Approval, Job, PlanVersion, Sentence, Subject
 from chalkboard.overview import NO_SOURCES, PARENT_GONE, STEP_CHECK, STEP_FIND
+from chalkboard.placement import Placed, PlannedClass, place
 from chalkboard.plans import DraftItem, PlanError, store_version
+from chalkboard.timetable import class_slots
 
 MAX_CLASSES = 30
 MAX_STEPS = 6
@@ -147,6 +151,58 @@ def lessons_for(
     ):
         found[version.parent_version_id] = version
     return found
+
+
+def term_slots(subject: Subject) -> list[datetime]:
+    times = {ct.weekday: ct.start for ct in subject.class_times}
+    return class_slots(times, subject.term_start, subject.term_end)
+
+
+def course_classes(session: Session, subject: Subject) -> list[PlannedClass]:
+    """Every class of the course in chapter order; a chapter not split yet holds placeholders for its future classes."""
+    entries = chapter_list(session, subject)
+    found = lessons_for(
+        session, [e.latest_version_id for e in entries if e.status == APPROVED]
+    )
+    ids = [item.id for version in found.values() for item in version.items]
+    minutes = (
+        dict(
+            session.execute(
+                select(Sentence.item_id, func.sum(Sentence.minutes))
+                .where(Sentence.item_id.in_(ids))
+                .group_by(Sentence.item_id)
+            ).all()
+        )
+        if ids
+        else {}
+    )
+    classes: list[PlannedClass] = []
+    for n, e in enumerate(entries, 1):
+        version = found.get(e.latest_version_id)
+        if version is not None and version.items:
+            classes.extend(
+                PlannedClass(
+                    n,
+                    e.key,
+                    j,
+                    len(version.items),
+                    item.id,
+                    item.title,
+                    minutes.get(item.id) or subject.class_minutes,
+                )
+                for j, item in enumerate(version.items, 1)
+            )
+        else:
+            split = split_minutes(e.hours, subject.class_minutes)
+            classes.extend(
+                PlannedClass(n, e.key, j, len(split), None, e.title, m)
+                for j, m in enumerate(split, 1)
+            )
+    return classes
+
+
+def placement(session: Session, subject: Subject) -> list[Placed]:
+    return place(course_classes(session, subject), term_slots(subject))
 
 
 def parse_class_titles(answer: object, n: int, chapter_title: str) -> list[str]:

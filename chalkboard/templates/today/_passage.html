@@ -1,0 +1,15 @@
+{% from "_icons.html" import icon %}
+<div class="passage-head">
+  {% if passage.flagged %}<span class="chip chip-flag">Check this</span>{% else %}<span class="summary-label">Passage</span>{% endif %}
+  <a class="icon-btn passage-close" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=item_id) }}" aria-label="Close passage">{{ icon('close') }}</a>
+</div>
+{% if passage.chunk %}
+<p><strong>Source {{ passage.citation.source_number }}, passage {{ passage.chunk.position + 1 }}</strong></p>
+<p class="muted">{{ passage.source.name }}{% if passage.chunk.page_start %} · {{ pages_label(passage.chunk.page_start, passage.chunk.page_end) }}{% endif %}</p>
+<blockquote class="passage-quote">{{ passage.chunk.text }}</blockquote>
+{% else %}
+<p class="muted">Source {{ passage.citation.source_number }} · source deleted</p>
+{% endif %}
+{% if passage.flagged %}
+<p class="muted">{{ passage.sentence.check_reason }}</p>
+{% endif %}

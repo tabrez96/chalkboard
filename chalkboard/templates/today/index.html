@@ -1,0 +1,112 @@
+{% extends "layouts/app.html" %}
+{% from "_icons.html" import icon %}
+{% block title %}Today{% endblock %}
+{% macro chapters_button(c, primary=false) -%}
+<a class="btn{% if primary %} btn-primary{% endif %}" href="{{ url_for('chapters.index', subject_id=subject.id, chapter=c.chapter_key) if c else url_for('chapters.index', subject_id=subject.id) }}">Open Chapters</a>
+{%- endmacro %}
+{% macro cite_link(c, cite_id, number) -%}
+<a class="cite{% if c is not none and c.id in amber_ids %} is-flag{% endif %}" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=item_id, cite=cite_id) ~ '#passage-panel' }}" data-panel="{{ url_for('today.passage', subject_id=subject.id, item_id=item_id, citation_id=cite_id) }}" aria-label="Citation, source {{ number }}">{{ number }}</a>
+{%- endmacro %}
+{% block main %}
+{% if mode == "lesson" %}
+<header class="page-head page-head-row">
+  <div>
+    <p class="eyebrow">{{ header_line }}</p>
+    <h1>{{ title }}</h1>
+  </div>
+  <div class="head-actions">
+    {% if prev_url %}<a class="icon-btn" href="{{ prev_url }}" aria-label="Previous class">{{ icon('chevron-left', 18) }}</a>
+    {% else %}<span class="icon-btn" aria-disabled="true" aria-label="Previous class">{{ icon('chevron-left', 18) }}</span>{% endif %}
+    {% if next_url %}<a class="icon-btn" href="{{ next_url }}" aria-label="Next class">{{ icon('chevron-right', 18) }}</a>
+    {% else %}<span class="icon-btn" aria-disabled="true" aria-label="Next class">{{ icon('chevron-right', 18) }}</span>{% endif %}
+  </div>
+</header>
+<div class="source-stack">
+  <section class="card lesson-plan" aria-labelledby="plan-title">
+    <div class="card-head">
+      <h2 id="plan-title">Lesson plan</h2>
+      <span class="muted">{{ time }}</span>
+    </div>
+    <ol class="class-steps">
+      {% for range, s in steps %}
+      <li>
+        <span class="step-time">{{ range }} min</span>
+        <span class="step-text" id="sentence-{{ s.id }}">{{ s.text }}
+          {%- for c in s.citations %} {{ cite_link(c, c.id, c.source_number) }}{% endfor %}
+          {%- if s.check_flag %} <span class="chip chip-flag">Check this</span>{% endif %}</span>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  <section class="card lesson-sources" aria-labelledby="sources-title">
+    <h2 id="sources-title" class="summary-label">Sources</h2>
+    <ul class="source-row">
+      {% for src in sources %}
+      <li>{{ cite_link(none, src.cite_id, src.number) }} <span>{{ src.name }}{% if src.pages %}, {{ src.pages }}{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+  <div id="passage-panel" class="card passage-panel" tabindex="-1" aria-label="Passage"{% if not passage %} hidden{% endif %}>
+    {% if passage %}{% include "today/_passage.html" %}{% endif %}
+  </div>
+</div>
+{% else %}
+{% set next = view.next %}
+<header class="page-head">
+  <p class="eyebrow">{% if mode == "no_lesson" %}{{ subject.name }} · {{ long_date(today) }}{% else %}{{ subject.name }}{% endif %}</p>
+  <h1>
+    {%- if mode == "no_lesson" %}No {{ subject.name }} class today
+    {%- elif mode == "not_written" %}Today's {{ subject.name }} lesson isn't written yet
+    {%- elif mode == "no_timetable" %}{{ subject.name }} has no timetable yet
+    {%- else %}The {{ subject.name }} term is over{% endif -%}
+  </h1>
+</header>
+<section class="card empty-card" aria-labelledby="empty-title">
+  <span class="empty-tile" aria-hidden="true">{{ icon('calendar', 24) }}</span>
+  {% if mode == "no_lesson" %}
+  <h2 id="empty-title">Nothing to teach today</h2>
+  {% if next %}
+  <p class="muted">Your next {{ subject.name }} class is <strong>{{ long_date(next.when) }}, {{ next.when.strftime("%H:%M") }}</strong>: {{ next.lesson.title }} ({{ class_line(next.lesson) }}).</p>
+  <div class="empty-actions">
+    {% if next.lesson.item_id %}<a class="btn btn-primary" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=next.lesson.item_id) }}">Open {{ next.when.strftime("%A") }}'s lesson</a>
+    {% else %}{{ chapters_button(next.lesson, true) }}{% endif %}
+  </div>
+  {% else %}
+  <p class="muted">No lessons are planned for your next classes yet.</p>
+  <div class="empty-actions">{{ chapters_button(none, true) }}</div>
+  {% endif %}
+  {% elif mode == "not_written" %}
+  <h2 id="empty-title">No lesson plan yet</h2>
+  {% if view.today %}
+  <p class="muted">Today is {{ class_line(view.today.lesson) }}. Approve that chapter on Chapters to split it into classes.</p>
+  <div class="empty-actions">{{ chapters_button(view.today.lesson, true) }}</div>
+  {% else %}
+  <p class="muted">No lesson is planned for today's class yet.</p>
+  <div class="empty-actions">{{ chapters_button(none, true) }}</div>
+  {% endif %}
+  {% elif mode == "no_timetable" %}
+  <h2 id="empty-title">Today needs your class days</h2>
+  <p class="muted">Add the days and times {{ subject.name }} is taught, and the term's first and last day. Lessons are then placed on those classes in order, and Today shows the one for today.</p>
+  <div class="empty-actions">
+    <a class="btn btn-primary" href="{{ url_for('subjects.settings', subject_id=subject.id) }}">Add class times</a>
+    <a class="btn" href="{{ url_for('chapters.index', subject_id=subject.id) }}">Open lessons in Chapters</a>
+  </div>
+  {% else %}
+  <h2 id="empty-title">The term is over</h2>
+  {% set n = view.not_taught %}
+  <p class="muted">
+    {%- if n == 0 %}Every planned lesson had a class.
+    {%- elif n == 1 %}1 lesson wasn't taught: it comes after the last class on {{ short_date(view.last) }}.
+    {%- else %}{{ n }} lessons weren't taught: they come after the last class on {{ short_date(view.last) }}.{% endif -%}
+  </p>
+  <div class="empty-actions">
+    <a class="btn btn-primary" href="{{ url_for('subjects.settings', subject_id=subject.id) }}">Subject settings</a>
+    <a class="btn" href="{{ url_for('chapters.index', subject_id=subject.id) }}">Open lessons in Chapters</a>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if mode == "lesson" %}<script src="{{ url_for('static', filename='js/overview.js') }}" defer></script>{% endif %}
+{% endblock %}

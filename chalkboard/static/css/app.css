@@ -2178,3 +2178,46 @@ a.unit-cite {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
+
+.lesson-plan .card-head {
+  margin-bottom: 12px;
+}
+
+.lesson-plan .class-steps li {
+  grid-template-columns: 9ch 1fr;
+}
+
+.lesson-sources .source-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.icon-btn[aria-disabled="true"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.coming-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.coming-table th,
+.coming-table td {
+  padding: 8px 12px 8px 0;
+  text-align: left;
+}
+
+.coming-table th {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.coming-table td {
+  border-top: 1px solid var(--line);
+}

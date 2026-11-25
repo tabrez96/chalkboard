@@ -314,6 +314,9 @@ def test_switcher_lists_subjects(signed_in, teacher, db_session):
 def test_open_subject_shows_pages(signed_in, teacher, db_session):
     subject = make(db_session, teacher, class_minutes=50)
     response = signed_in.get(f"/subjects/{subject.id}")
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(f"/subjects/{subject.id}/today")
+    response = signed_in.get(response.headers["Location"])
     assert response.status_code == 200
     html = text(response)
     nav = html[html.index('<nav id="sidebar-nav"') : html.index("</nav>")]
