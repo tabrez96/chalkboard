@@ -170,11 +170,11 @@ def test_subject_pages_render_with_subject(app, teacher):
     assert "Physics" in html
     for label in ("Today", "Course overview", "Chapters", "Sources", "Students"):
         assert label in html
-    assert 'aria-disabled="true"' in html
-    disabled = re.findall(r"<a [^>]*aria-disabled=\"true\"[^>]*>", html)
-    # Students, Sources, Course overview and Chapters are real links now, so one sidebar entry is still disabled.
-    assert len(disabled) == 1
-    assert all('tabindex="0"' in tag and "href=" not in tag for tag in disabled)
+    assert 'aria-disabled="true"' not in html
+    for label in ("Today", "Course overview", "Chapters", "Sources", "Students"):
+        assert re.search(
+            rf'<a class="nav-link" href="[^"]+" aria-label="{label}"', html
+        )
 
 
 def test_settings_page(client, teacher):

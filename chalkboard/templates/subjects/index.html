@@ -12,14 +12,33 @@
 </header>
 {% if subjects %}
 <div class="subject-grid">
-  {% for s in subjects %}{{ subject_card(s) }}{% endfor %}
+  {% for s in subjects %}{{ subject_card(s, plans[s.id]) }}{% endfor %}
 </div>
 <section class="card coming-up" aria-labelledby="coming-up-title">
   <div class="card-head">
     <h2 id="coming-up-title">Coming up</h2>
     <span class="muted">Next 7 days</span>
   </div>
+  {% if coming %}
+  <table class="coming-table">
+    <thead>
+      <tr><th>When</th><th>Subject</th><th>Lesson</th><th>Length</th><th><span class="visually-hidden">Status</span></th></tr>
+    </thead>
+    <tbody>
+      {% for r in coming %}
+      <tr>
+        <td>{{ short_when(r.when) }}</td>
+        <td>{{ r.subject }}</td>
+        <td><a href="{{ r.url }}">{{ r.title }}</a></td>
+        <td>{{ r.minutes }} min</td>
+        <td>{% if r.ready %}<span class="chip chip-ok">Ready</span>{% else %}<span class="chip">Not written</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
   <p class="muted">No classes planned yet.</p>
+  {% endif %}
 </section>
 {% else %}
 <section class="card empty-card" aria-labelledby="empty-title">

@@ -1,10 +1,9 @@
 import pytest
-from flask import Blueprint
 from sqlalchemy import delete
 
 from chalkboard.models import Subject, Teacher
 from chalkboard.passwords import hash_password
-from tests.conftest import csrf_token, make_app, sign_in
+from tests.conftest import csrf_token, sign_in
 
 
 def assert_error_state(response, email):
@@ -157,23 +156,9 @@ def last_subject(db_session, teacher) -> int:
     return subject.id
 
 
-def test_last_subject_goes_to_today(db_connection, db_session, teacher):
-    app = make_app(db_connection)
-    today = Blueprint("today", __name__)
-
-    @today.get("/subjects/<int:subject_id>/today")
-    def show(subject_id):
-        return "today"
-
-    app.register_blueprint(today)
+def test_last_subject_goes_to_today(client, db_session, teacher):
     subject_id = last_subject(db_session, teacher)
-    client = app.test_client()
     assert sign_in(client).headers["Location"] == f"/subjects/{subject_id}/today"
-
-
-def test_last_subject_without_today_page_goes_to_subjects(client, db_session, teacher):
-    last_subject(db_session, teacher)
-    assert sign_in(client).headers["Location"] == "/subjects"
 
 
 def test_deleted_teacher_session_cleared(client, db_session, teacher):

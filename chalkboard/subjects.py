@@ -1,9 +1,9 @@
-from datetime import datetime, time
+from dataclasses import dataclass
+from datetime import date, datetime, time
 
 from flask import (
     Blueprint,
     abort,
-    current_app,
     redirect,
     render_template,
     url_for,
@@ -38,6 +38,13 @@ from chalkboard.models import (
     ClassTime,
     Source,
     Subject,
+)
+from chalkboard.placement import (
+    Placed,
+    coming_up,
+    next_unfinished,
+    short_when,
+    wont_fit,
 )
 from chalkboard.settings_page import strip
 from chalkboard.sources import MAX_UPLOAD_BYTES, UploadError
@@ -172,6 +179,56 @@ def switcher_line(grade: str, class_minutes: int) -> str:
     return f"{grade} · {class_minutes} min" if grade else f"{class_minutes} min"
 
 
+def now() -> datetime:
+    return datetime.now()
+
+
+@dataclass(frozen=True)
+class CardPlan:
+    next_when: str | None
+    next_title: str | None
+    wont_fit: int | None
+
+
+@dataclass(frozen=True)
+class ComingRow:
+    when: datetime
+    subject: str
+    title: str
+    minutes: int
+    ready: bool
+    url: str
+
+
+def card_plan(placed: list[Placed], moment: datetime, timetable: bool) -> CardPlan:
+    n = next_unfinished(placed, moment)
+    return CardPlan(
+        short_when(n.when) if n else None,
+        n.lesson.title if n else None,
+        # Without a timetable no class has a slot: that is a gap in setup, not an overflow.
+        wont_fit(placed) if timetable else None,
+    )
+
+
+def coming_rows(subject: Subject, placed: list[Placed], day: date) -> list[ComingRow]:
+    rows = []
+    for p in coming_up(placed, day):
+        ready = p.lesson.item_id is not None
+        url = (
+            url_for("today.lesson", subject_id=subject.id, item_id=p.lesson.item_id)
+            if ready
+            else url_for(
+                "chapters.index", subject_id=subject.id, chapter=p.lesson.chapter_key
+            )
+        )
+        rows.append(
+            ComingRow(
+                p.when, subject.name, p.lesson.title, p.lesson.minutes, ready, url
+            )
+        )
+    return rows
+
+
 def greeting(hour: int) -> str:
     if hour < 12:
         return "Good morning"
@@ -280,7 +337,9 @@ def build_form(subject: Subject | None, posted: bool = False) -> SubjectForm:
 
 
 def render_index(form: SubjectForm | None = None, subject=None, status: int = 200):
-    subjects = get_session().scalars(teacher_select(Subject).order_by(Subject.name))
+    subjects = (
+        get_session().scalars(teacher_select(Subject).order_by(Subject.name)).all()
+    )
     chip = None
     if form is not None:
         b = budget(
@@ -291,6 +350,18 @@ def render_index(form: SubjectForm | None = None, subject=None, status: int = 20
         )
         chip = format_budget(b) if b is not None else None
     session = get_session()
+    # Imported here: lessons imports modules that import this one.
+    from chalkboard.lessons import placement, term_slots
+
+    moment = now()
+    today = moment.date()
+    plans = {}
+    coming = []
+    for s in subjects:
+        placed = placement(session, s)
+        plans[s.id] = card_plan(placed, moment, bool(term_slots(s)))
+        coming.extend(coming_rows(s, placed, today))
+    coming.sort(key=lambda r: (r.when, r.subject))
     current = (
         current_syllabus(session, subject)
         if subject is not None and subject.board != "none"
@@ -324,8 +395,11 @@ def render_index(form: SubjectForm | None = None, subject=None, status: int = 20
         syllabus_choices=choices,
         max_bytes=MAX_UPLOAD_BYTES,
         active="subjects",
-        subjects=subjects.all(),
-        greeting=greeting(datetime.now().hour),
+        subjects=subjects,
+        plans=plans,
+        coming=coming,
+        short_when=short_when,
+        greeting=greeting(now().hour),
         form=form,
         editing=subject,
         chip=chip,
@@ -427,9 +501,7 @@ def open_subject(subject_id: int):
     subject = own_subject(subject_id)
     current_teacher().last_subject_id = subject.id
     get_session().commit()
-    if "today.show" in current_app.view_functions:
-        return redirect(url_for("today.show", subject_id=subject.id))
-    return render_template("subjects/subject.html", subject=subject, active=None)
+    return redirect(url_for("today.show", subject_id=subject.id))
 
 
 @bp.get("/")
