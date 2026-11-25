@@ -1,0 +1,12 @@
+{% from "_icons.html" import icon %}
+<div class="passage-head">
+  <span class="summary-label">Passage</span>
+  <a class="icon-btn passage-close" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=item_id) }}" aria-label="Close passage">{{ icon('close') }}</a>
+</div>
+{% if chunk %}
+<p><strong>Source {{ number }}, passage {{ chunk.position + 1 }}</strong></p>
+<p class="muted">{{ source.name }}{% if chunk.page_start %} · {{ pages_label(chunk.page_start, chunk.page_end) }}{% endif %}</p>
+<blockquote class="passage-quote">{{ chunk.text }}</blockquote>
+{% else %}
+<p class="muted">Source {{ number }} · source deleted</p>
+{% endif %}

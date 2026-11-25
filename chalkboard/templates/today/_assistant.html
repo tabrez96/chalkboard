@@ -1,0 +1,27 @@
+{% from "_icons.html" import icon %}
+{% from "_ollama.html" import ollama_banner %}
+{% set ask_url = url_for('today.ask', subject_id=subject.id, item_id=item_id) %}
+<section id="assistant" class="card assistant" aria-labelledby="assistant-title">
+  <h2 id="assistant-title">Assistant</h2>
+  <div class="segmented" role="group" aria-label="Answer from">
+    <button type="button" aria-pressed="true">Your sources</button>
+    <button type="button" aria-pressed="false" disabled>{{ icon('globe', 14) }} Sources + web</button>
+  </div>
+  {% if ollama_down %}{{ ollama_banner(g.teacher) }}{% endif %}
+  <div class="chat-log" id="chat-log" aria-live="polite">
+    {% for m in messages %}
+    {% with message=m %}{% include "today/_message.html" %}{% endwith %}
+    {% if m.role == "teacher" and m.id not in answered %}
+    {% with pending=m, job=jobs.get(m.job_id) %}{% include "today/_message.html" %}{% endwith %}
+    {% endif %}
+    {% endfor %}
+  </div>
+  <form class="chat-form" method="post" action="{{ ask_url }}" hx-post="{{ ask_url }}" hx-target="#assistant" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label class="visually-hidden" for="question">Ask about this lesson</label>
+    <input id="question" name="question" maxlength="{{ question_max }}" placeholder="Ask about this lesson" autocomplete="off" value="{{ question or '' }}"{% if ollama_down %} disabled{% endif %} />
+    <button class="btn btn-primary icon-only" aria-label="Send"{% if ollama_down %} disabled{% endif %}>{{ icon('send') }}</button>
+  </form>
+  {% if chat_error %}<p class="field-error" role="alert">{{ chat_error }}</p>{% endif %}
+  <p class="hint">{{ icon('lock', 12) }} Student names are removed before anything is sent.</p>
+</section>

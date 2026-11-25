@@ -1,0 +1,21 @@
+{% if pending is defined and pending %}
+{% if job and job.state == "failed" %}
+<div class="bubble bubble-answer job-error" role="alert">{{ job.error or "Something went wrong. Try again." }}</div>
+{% else %}
+<div class="typing" role="status" hx-get="{{ url_for('today.chat_answer', subject_id=subject.id, item_id=item_id, question_id=pending.id) }}" hx-trigger="every 2s" hx-swap="outerHTML"><span class="visually-hidden">{{ "Waiting for the Ollama server" if job and job.state == "waiting_ollama" else "Writing an answer" }}</span><i></i><i></i><i></i></div>
+{% endif %}
+{% elif message.role == "teacher" %}
+<div class="bubble bubble-teacher">{{ message.text }}</div>
+{% elif message.label == "from_sources" %}
+<div class="bubble bubble-answer"><span class="chip chip-ok">From your sources</span>
+  <p>
+  {%- for part in message.parts %}{% if not loop.first %} {% endif %}{{ part.text }}
+    {%- for c in part.cites %} <a class="cite" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=item_id) ~ '#assistant' }}" data-panel="{{ url_for('today.chat_passage', subject_id=subject.id, item_id=item_id, message_id=message.id, chunk_id=c[0]) }}" aria-label="Citation, source {{ c[1] }}">{{ c[1] }}</a>{% endfor %}
+  {%- endfor -%}
+  </p>
+</div>
+{% else %}
+<div class="bubble bubble-missing"><span class="chip chip-flag">Not in your sources</span>
+  <p>Your {{ subject.name }} sources don't cover this. Switch to <strong>Sources + web</strong> to look it up.</p>
+</div>
+{% endif %}

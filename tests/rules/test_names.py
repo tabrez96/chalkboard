@@ -6,15 +6,19 @@ import httpx
 import pytest
 
 import chalkboard
-from chalkboard import ai
+from chalkboard import ai, jobs
 from chalkboard.ai import FACTORY_KEY, TRANSPORT_KEY, RedactingClient, model_client
 from chalkboard.ai.base import EMBED_DIMENSIONS, OllamaConfig
 from chalkboard.ai.ollama import OllamaClient
 from chalkboard.models import Student, Subject
 from tests.conftest import csrf_token, sign_in
+from tests.test_chapters_page import approved_with_lessons
+from tests.test_today_page import sourced, timetable
 
 STUDENTS = ["Leo Martins", "Yusuf Okafor", "Mia Chen"]
 SOURCE = Path(chalkboard.__file__).parent
+# Reuse the Today page fixtures; `sourced` builds on this module's `subject`, which has the students.
+fixtures = (sourced, timetable)
 
 
 @pytest.fixture
@@ -143,3 +147,63 @@ def test_cross_subject_roster_with_alike_spellings_is_redacted(
     flat = json.dumps(json.loads(captured[0]), ensure_ascii=False)
     assert "Weiß" not in flat and "Weiss" not in flat
     assert "Student A" in flat and "Student B" in flat
+
+
+def chat_transport(captured, models):
+    def handler(request):
+        if request.url.path == "/api/tags":
+            return httpx.Response(
+                200, json={"models": [{"name": m, "model": m} for m in models]}
+            )
+        captured.append(request.content.decode())
+        if request.url.path == "/api/embed":
+            vectors = [
+                [0.0] * EMBED_DIMENSIONS for _ in json.loads(request.content)["input"]
+            ]
+            return httpx.Response(200, json={"embeddings": vectors})
+        content = json.dumps(
+            {
+                "sentences": [
+                    {"text": "Ask Student A to explain.", "passages": ["P1"]}
+                ],
+                "supported": True,
+                "reason": "ok",
+            }
+        )
+        return httpx.Response(200, json={"message": {"content": content}})
+
+    return httpx.MockTransport(handler)
+
+
+def test_student_name_typed_in_chat_never_reaches_model(
+    app, client, db_session, teacher, timetable
+):
+    _, lessons = approved_with_lessons(db_session, timetable)
+    sign_in(client)
+    captured: list[str] = []
+    with app.app_context():
+        config = ai.config_for(teacher)
+    app.extensions[TRANSPORT_KEY] = chat_transport(
+        captured, [config.embed_model, config.write_model]
+    )
+    item_id = lessons.items[0].id
+    page = f"/subjects/{timetable.id}/today/lessons/{item_id}"
+    client.post(
+        f"{page}/chat",
+        data={
+            "question": "How should Leo Martins and mia explain Okafor's result?",
+            "csrf_token": csrf_token(client, page),
+        },
+    )
+    while jobs.run_once(app):
+        pass
+    assert captured
+    assert any("messages" in body for body in captured)
+    terms = [t for name in STUDENTS for t in (name, *name.split())]
+    for body in captured:
+        flat = json.dumps(json.loads(body), ensure_ascii=False)
+        for term in terms:
+            assert not re.search(
+                rf"(?<!\w){re.escape(term)}(?!\w)", flat, re.IGNORECASE
+            ), term
+    assert any("Student A" in body for body in captured)
