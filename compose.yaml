@@ -14,6 +14,16 @@ services:
       interval: 2s
       timeout: 5s
       retries: 30
+  searxng:
+    # Pinned dated tag (SearXNG tags look like 2026.11.21-<sha>); never latest.
+    image: searxng/searxng:2026.11.21-c6ee3e9fd
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-dev-not-secret}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "127.0.0.1:8888:8080"
+    restart: unless-stopped
   web:
     build: .
     environment: &app-env
@@ -22,6 +32,7 @@ services:
       CHALKBOARD_OLLAMA_URL: ${CHALKBOARD_OLLAMA_URL:-http://localhost:11434}
       CHALKBOARD_EMBED_MODEL: ${CHALKBOARD_EMBED_MODEL:-qwen3-embedding:0.6b}
       CHALKBOARD_WRITE_MODEL: ${CHALKBOARD_WRITE_MODEL:-qwen3.5:9b}
+      CHALKBOARD_SEARXNG_URL: ${CHALKBOARD_SEARXNG_URL:-http://searxng:8080}
     volumes:
       - data:/app/data
       - backups:/app/backups
@@ -30,6 +41,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      searxng:
+        condition: service_started
   worker:
     build: .
     command: ["flask", "--app", "chalkboard", "worker"]
@@ -41,6 +54,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      searxng:
+        condition: service_started
       web:
         condition: service_started
 volumes:

@@ -1,9 +1,10 @@
 """S06 assistant: questions about a lesson answered from the subject's sources, or labelled "Not in your sources"."""
 
+from flask import current_app
 from sqlalchemy import select
 
 from chalkboard import jobs
-from chalkboard.ai import model_client
+from chalkboard.ai import TRANSPORT_KEY, model_client, websearch
 from chalkboard.ai.check import check_sentences
 from chalkboard.ai.retrieve import Passage, retrieve
 from chalkboard.ai.write import DraftSentence, write_sentences
@@ -22,6 +23,13 @@ ANSWER_INSTRUCTION = (
 )
 NOT_IN_SOURCES = (
     "Your {subject} sources don't cover this. Switch to Sources + web to look it up."
+)
+SCOPES = ("sources", "web")
+NOT_FOUND_WEB = (
+    "Neither your {subject} sources nor the web search had an answer to this."
+)
+WEB_UNAVAILABLE = (
+    "Your {subject} sources don't cover this, and web search isn't answering right now."
 )
 
 
@@ -42,7 +50,13 @@ def pending_answer(session, question: ChatMessage) -> ChatMessage | None:
 
 
 def ask(
-    session, teacher_id: int, subject_id: int, item_id: int, text: str
+    session,
+    teacher_id: int,
+    subject_id: int,
+    item_id: int,
+    text: str,
+    scope: str = "sources",
+    web_enabled: bool = False,
 ) -> ChatMessage:
     """Save the teacher's question and queue its answer; the caller commits."""
     text = " ".join(text.split())
@@ -50,8 +64,10 @@ def ask(
         raise ValueError(QUESTION_EMPTY)
     if len(text) > QUESTION_MAX:
         raise ValueError(QUESTION_TOO_LONG)
+    if scope != "web" or not web_enabled:
+        scope = "sources"
     question = ChatMessage(
-        subject_id=subject_id, item_id=item_id, role="teacher", text=text
+        subject_id=subject_id, item_id=item_id, role="teacher", text=text, scope=scope
     )
     session.add(question)
     session.flush()
@@ -75,6 +91,14 @@ def answer_parts(
     return parts
 
 
+def web_links(parts: list[dict]) -> list[str]:
+    """Every link of a web answer, in order, without repeats."""
+    links: list[str] = []
+    for part in parts:
+        links.extend(url for url in part.get("links", []) if url not in links)
+    return links
+
+
 @jobs.register(ANSWER_KIND)
 def answer_question(ctx: JobContext) -> None:
     session = ctx.session
@@ -84,6 +108,10 @@ def answer_question(ctx: JobContext) -> None:
     subject = session.get(Subject, question.subject_id)
     item = session.get(PlanItem, question.item_id)
     client = model_client(ctx.teacher, subject)
+    # Checked again here: the switch in Settings may have been turned off since the question was asked.
+    use_web = question.scope == "web" and ctx.teacher.web_search_enabled
+    web_parts: list[dict] = []
+    web_failed = False
     try:
         ctx.progress(STEP_ANSWER, 0)
         passages = retrieve(
@@ -101,10 +129,33 @@ def answer_question(ctx: JobContext) -> None:
             parts = answer_parts(
                 client, check_sentences(client, written, passages), passages
             )
+        if not parts and use_web:
+            instruction = ANSWER_INSTRUCTION.format(
+                lesson=item.title, subject=subject.name, question=question.text
+            )
+            try:
+                results = websearch.search(
+                    # Student names never leave the app.
+                    client.redactor.redact(question.text),
+                    current_app.extensions["chalkboard.settings"].searxng_url,
+                    transport=current_app.extensions.get(TRANSPORT_KEY),
+                )
+                web_parts = [
+                    {"text": client.redactor.restore(p["text"]), "links": p["links"]}
+                    for p in websearch.write_web_answer(client, instruction, results)
+                ]
+            except websearch.WebSearchError:
+                web_failed = True
     finally:
         client.close()
     if parts:
         label, text = "from_sources", " ".join(p["text"] for p in parts)
+    elif web_parts:
+        label, text = "from_web", " ".join(p["text"] for p in web_parts)
+        parts = web_parts
+    elif use_web:
+        template = WEB_UNAVAILABLE if web_failed else NOT_FOUND_WEB
+        label, text = "not_in_sources", template.format(subject=subject.name)
     else:
         label, text = "not_in_sources", NOT_IN_SOURCES.format(subject=subject.name)
     session.add(
@@ -112,6 +163,7 @@ def answer_question(ctx: JobContext) -> None:
             subject_id=question.subject_id,
             item_id=question.item_id,
             role="assistant",
+            scope="web" if use_web else "sources",
             label=label,
             text=text,
             parts=parts,

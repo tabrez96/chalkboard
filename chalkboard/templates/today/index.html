@@ -111,5 +111,6 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
-{% if mode == "lesson" %}<script src="{{ url_for('static', filename='js/overview.js') }}" defer></script>{% endif %}
+{% if mode == "lesson" %}<script src="{{ url_for('static', filename='js/overview.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/assistant.js') }}" defer></script>{% endif %}
 {% endblock %}

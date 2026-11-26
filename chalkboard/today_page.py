@@ -1,6 +1,7 @@
 """S06 Today: the lesson placed on today's date, its steps and sources, and the empty states."""
 
 from datetime import datetime
+from urllib.parse import urlsplit
 
 from flask import Blueprint, abort, g, redirect, render_template, request, url_for
 from sqlalchemy import select
@@ -114,6 +115,8 @@ def chat_context(session, item_id: int, **extra) -> dict:
         "ollama_down": ollama_down(),
         "question_max": assistant.QUESTION_MAX,
         "chat_error": None,
+        "scope": "sources",
+        "web_enabled": g.teacher.web_search_enabled,
         **extra,
     }
 
@@ -125,6 +128,21 @@ def chat_partial(subject, item_id: int, **extra):
         item_id=item_id,
         **chat_context(get_session(), item_id, **extra),
     )
+
+
+@bp.app_template_global()
+def web_links(parts):
+    return assistant.web_links(parts)
+
+
+@bp.app_template_filter("web_link")
+def web_link(url: str) -> str:
+    """'https://en.wikipedia.org/wiki/Usain_Bolt' -> 'en.wikipedia.org/wiki/Usain_Bolt'."""
+    parts = urlsplit(url)
+    shown = parts.netloc + parts.path
+    if parts.query:
+        shown += "?" + parts.query
+    return shown.rstrip("/")
 
 
 def is_htmx() -> bool:
@@ -233,18 +251,33 @@ def ask(subject_id: int, item_id: int):
     find_lesson(placement(session, subject), item_id)
     back = url_for("today.lesson", subject_id=subject.id, item_id=item_id)
     text = request.form.get("question", "")
+    scope = request.form.get("scope", "sources")
+    web_enabled = g.teacher.web_search_enabled
+    shown = scope if scope in assistant.SCOPES and web_enabled else "sources"
     if ollama_down():
-        return chat_partial(subject, item_id) if is_htmx() else redirect(back, 303)
+        if is_htmx():
+            return chat_partial(subject, item_id, scope=shown)
+        return redirect(back, 303)
     try:
-        assistant.ask(session, g.teacher.id, subject.id, item_id, text)
+        assistant.ask(
+            session,
+            g.teacher.id,
+            subject.id,
+            item_id,
+            text,
+            scope=scope,
+            web_enabled=web_enabled,
+        )
     except ValueError as exc:
         if is_htmx():
             # 200, not 422: HTMX doesn't swap error responses.
-            return chat_partial(subject, item_id, chat_error=str(exc), question=text)
+            return chat_partial(
+                subject, item_id, chat_error=str(exc), question=text, scope=shown
+            )
         return redirect(back + "#assistant", 303)
     session.commit()
     if is_htmx():
-        return chat_partial(subject, item_id)
+        return chat_partial(subject, item_id, scope=shown)
     return redirect(back + "#assistant", 303)
 
 

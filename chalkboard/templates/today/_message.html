@@ -1,3 +1,4 @@
+{% from "_icons.html" import icon %}
 {% if pending is defined and pending %}
 {% if job and job.state == "failed" %}
 <div class="bubble bubble-answer job-error" role="alert">{{ job.error or "Something went wrong. Try again." }}</div>
@@ -14,8 +15,14 @@
   {%- endfor -%}
   </p>
 </div>
+{% elif message.label == "from_web" %}
+<div class="bubble bubble-answer bubble-web"><span class="chip chip-web">{{ icon('globe', 12) }} From the web</span>
+  <p>{% for part in message.parts %}{% if not loop.first %} {% endif %}{{ part.text }}{% endfor %}</p>
+  <p class="web-links">{% for l in web_links(message.parts) %}<a href="{{ l }}" target="_blank" rel="noopener noreferrer nofollow">{{ l | web_link }}</a>{% if not loop.last %}, {% endif %}{% endfor %} · check before using in class</p>
+</div>
 {% else %}
 <div class="bubble bubble-missing"><span class="chip chip-flag">Not in your sources</span>
-  <p>Your {{ subject.name }} sources don't cover this. Switch to <strong>Sources + web</strong> to look it up.</p>
+  {% if message.scope == "web" %}<p>{{ message.text }}</p>
+  {% else %}<p>Your {{ subject.name }} sources don't cover this. Switch to <strong>Sources + web</strong> to look it up.</p>{% endif %}
 </div>
 {% endif %}

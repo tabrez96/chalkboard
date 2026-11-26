@@ -3,10 +3,12 @@
 {% set ask_url = url_for('today.ask', subject_id=subject.id, item_id=item_id) %}
 <section id="assistant" class="card assistant" aria-labelledby="assistant-title">
   <h2 id="assistant-title">Assistant</h2>
+  {% set web_on = web_enabled and scope == "web" %}
   <div class="segmented" role="group" aria-label="Answer from">
-    <button type="button" aria-pressed="true">Your sources</button>
-    <button type="button" aria-pressed="false" disabled>{{ icon('globe', 14) }} Sources + web</button>
+    <button type="button" data-scope="sources" aria-pressed="{{ 'false' if web_on else 'true' }}">Your sources</button>
+    <button type="button" data-scope="web" aria-pressed="{{ 'true' if web_on else 'false' }}"{% if not web_enabled %} disabled aria-describedby="scope-off"{% endif %}>{{ icon('globe', 14) }} Sources + web</button>
   </div>
+  {% if not web_enabled %}<p class="hint scope-off" id="scope-off">Web search is off in <a href="{{ url_for('settings.show', _anchor='web-title') }}">Settings</a></p>{% endif %}
   {% if ollama_down %}{{ ollama_banner(g.teacher) }}{% endif %}
   <div class="chat-log" id="chat-log" aria-live="polite">
     {% for m in messages %}
@@ -18,6 +20,7 @@
   </div>
   <form class="chat-form" method="post" action="{{ ask_url }}" hx-post="{{ ask_url }}" hx-target="#assistant" hx-swap="outerHTML">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="scope" value="{{ 'web' if web_on else 'sources' }}" />
     <label class="visually-hidden" for="question">Ask about this lesson</label>
     <input id="question" name="question" maxlength="{{ question_max }}" placeholder="Ask about this lesson" autocomplete="off" value="{{ question or '' }}"{% if ollama_down %} disabled{% endif %} />
     <button class="btn btn-primary icon-only" aria-label="Send"{% if ollama_down %} disabled{% endif %}>{{ icon('send') }}</button>

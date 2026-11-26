@@ -71,6 +71,7 @@ Prerequisites: Docker with Compose, uv 0.13.9, Node.js (for `npx`).
 - Run everything: `docker compose up --build`, then http://localhost:8000/healthz returns `{"status": "ok"}`.
 - Run the app locally against the Compose database: `docker compose up -d db`, `uv run alembic upgrade head`, `uv run flask --app chalkboard run --debug`
   - If `.env` sets a custom `POSTGRES_PASSWORD`, first run `export CHALKBOARD_DATABASE_URL="postgresql+psycopg://chalkboard:<POSTGRES_PASSWORD>@localhost:5432/chalkboard"`. Host commands don't read `.env`.
+- Web search: `docker compose up -d searxng` serves SearXNG on http://127.0.0.1:8888 for local runs.
 - New migration: `uv run alembic revision --autogenerate -m "<what changes>"`; apply it with `uv run alembic upgrade head`.
 - Tests: `docker compose up -d db`, then `uv run pytest` (creates and drops `chalkboard_test`; override the URL with `CHALKBOARD_TEST_DATABASE_URL`).
 - Create the first account: `uv run flask --app chalkboard create-teacher --email you@example.com --name "Your name"` (with Compose: `docker compose exec web flask --app chalkboard create-teacher ...`). It asks for the password twice.
@@ -89,6 +90,8 @@ Configuration (environment variables):
 - `CHALKBOARD_OLLAMA_URL`: address of the Ollama server (default `http://localhost:11434`); Settings can override it.
 - `CHALKBOARD_EMBED_MODEL`: embedding model (default `qwen3-embedding:0.6b`); Settings can override it.
 - `CHALKBOARD_WRITE_MODEL`: writing model (default `qwen3.5:9b`); Settings can override it.
+- `CHALKBOARD_SEARXNG_URL`: address of the SearXNG server (default `http://localhost:8888`; Compose sets `http://searxng:8080`).
+- `SEARXNG_SECRET`: secret of the SearXNG container; set a real value in `.env` (`openssl rand -hex 32`).
 
 Set a real `CHALKBOARD_SECRET_KEY` and `POSTGRES_PASSWORD` in a `.env` file next to `compose.yaml` for anything but local development. The password is placed inside the database URL, so use URL-safe values (no `@`, `:` or `/`): generate both with `openssl rand -hex 32`.
 
