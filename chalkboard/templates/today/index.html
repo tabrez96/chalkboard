@@ -15,6 +15,7 @@
     <h1>{{ title }}</h1>
   </div>
   <div class="head-actions">
+    {% if not class_over %}<a class="btn" href="{{ trivia_url }}">Trivia for class</a>{% endif %}
     {% if prev_url %}<a class="icon-btn" href="{{ prev_url }}" aria-label="Previous class">{{ icon('chevron-left', 18) }}</a>
     {% else %}<span class="icon-btn" aria-disabled="true" aria-label="Previous class">{{ icon('chevron-left', 18) }}</span>{% endif %}
     {% if next_url %}<a class="icon-btn" href="{{ next_url }}" aria-label="Next class">{{ icon('chevron-right', 18) }}</a>
@@ -23,11 +24,21 @@
 </header>
 <div class="today-grid">
 <div class="source-stack">
+  {% if class_over %}
+  <details class="card lesson-plan plan-collapsed" aria-labelledby="plan-title">
+    <summary>
+      <span class="chip chip-ok">Class taught</span>
+      <h2 id="plan-title">Lesson plan</h2>
+      <span class="muted">{{ time }} · {{ steps|length }} steps</span>
+      <span class="summary-action">Show plan</span>
+    </summary>
+  {% else %}
   <section class="card lesson-plan" aria-labelledby="plan-title">
     <div class="card-head">
       <h2 id="plan-title">Lesson plan</h2>
       <span class="muted">{{ time }}</span>
     </div>
+  {% endif %}
     <ol class="class-steps">
       {% for range, s in steps %}
       <li>
@@ -38,7 +49,8 @@
       </li>
       {% endfor %}
     </ol>
-  </section>
+  {% if class_over %}</details>{% else %}</section>{% endif %}
+  {% if show_trivia %}{% include "today/_trivia.html" %}{% endif %}
   <section class="card lesson-sources" aria-labelledby="sources-title">
     <h2 id="sources-title" class="summary-label">Sources</h2>
     <ul class="source-row">
@@ -112,5 +124,6 @@
 {% endblock %}
 {% block scripts %}
 {% if mode == "lesson" %}<script src="{{ url_for('static', filename='js/overview.js') }}" defer></script>
-<script src="{{ url_for('static', filename='js/assistant.js') }}" defer></script>{% endif %}
+<script src="{{ url_for('static', filename='js/assistant.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/trivia.js') }}" defer></script>{% endif %}
 {% endblock %}
