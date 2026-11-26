@@ -2377,3 +2377,175 @@ a.unit-cite {
   flex: 1;
   min-width: 0;
 }
+
+/* S06 trivia */
+.trivia {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.trivia .card-head {
+  gap: 16px;
+}
+
+.trivia .card-head .muted {
+  margin-left: auto;
+}
+
+.trivia-intro {
+  margin: 0;
+}
+
+.trivia-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 440px;
+  text-align: center;
+}
+
+.trivia-empty p {
+  max-width: 420px;
+  margin: 0 0 16px;
+}
+
+.trivia-empty .hint {
+  margin-top: 16px;
+}
+
+.trivia-write {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trivia-write label {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.trivia-write select {
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.trivia-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trivia-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.trivia-num {
+  align-self: start;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: var(--primary-soft);
+  color: var(--on-primary-soft);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.trivia-q,
+.trivia-a {
+  margin: 0;
+}
+
+.trivia-q {
+  font-weight: 700;
+}
+
+.trivia-a {
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+.trivia-a strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.trivia-actions {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.trivia-edit {
+  display: grid;
+  grid-column: 2 / -1;
+  gap: 6px;
+}
+
+.trivia-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.trivia-progress {
+  margin: 0;
+  color: var(--muted);
+}
+
+.trivia .hint {
+  margin: 0;
+  text-align: left;
+}
+
+.plan-collapsed summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  list-style: none;
+  cursor: pointer;
+}
+
+.plan-collapsed summary::-webkit-details-marker {
+  display: none;
+}
+
+.plan-collapsed summary h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.plan-collapsed .summary-action {
+  margin-left: auto;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.plan-collapsed[open] .class-steps {
+  margin-top: 12px;
+}

@@ -498,3 +498,34 @@ class ChatMessage(Base):
             name="label",
         ),
     )
+
+
+class TriviaSet(Base):
+    __tablename__ = "trivia_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), index=True
+    )
+    # The lesson (a PlanItem of kind 'lesson') the questions are for.
+    item_id: Mapped[int] = mapped_column(
+        ForeignKey("plan_items.id", ondelete="CASCADE")
+    )
+    # 1, 2, … per lesson; every write, edit or new question adds a version and never changes an old one.
+    number: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # [{"question": str, "answer": str, "chunk_id": int | None, "source_number": int, "edited": bool}, ...]
+    questions: Mapped[list] = mapped_column(
+        JSONB, server_default=sa.text("'[]'::jsonb")
+    )
+    # The job that wrote this version; None for a hand edit. Unique, so a re-run job never saves twice.
+    job_id: Mapped[int | None] = mapped_column(
+        ForeignKey("jobs.id", ondelete="SET NULL"), unique=True
+    )
+
+    __table_args__ = (
+        CheckConstraint("number >= 1", name="number"),
+        UniqueConstraint("item_id", "number"),
+    )

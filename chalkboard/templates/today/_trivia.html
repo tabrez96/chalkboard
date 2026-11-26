@@ -1,0 +1,73 @@
+{% from "_ollama.html" import ollama_banner %}
+{% set card_url = url_for('today.trivia_card', subject_id=subject.id, item_id=item_id) %}
+<section id="trivia" class="card trivia" aria-labelledby="trivia-title"{% if trivia_job and trivia_editing is none %} hx-get="{{ card_url }}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  {% if ollama_down %}{{ ollama_banner(g.teacher) }}{% endif %}
+  {% for category, message in get_flashed_messages(with_categories=true) %}
+  <p class="job-error" role="alert">{{ message }}</p>
+  {% endfor %}
+  {% if not trivia %}
+  <div class="trivia-empty">
+    <h2 id="trivia-title">Trivia for class</h2>
+    <p class="muted">Write 3 to 5 quick questions to ask the class after this lesson. Each question comes with its answer and the passage it's taken from.</p>
+    <form class="trivia-write" method="post" action="{{ url_for('today.trivia_write', subject_id=subject.id, item_id=item_id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label for="trivia-count">Questions</label>
+      <select id="trivia-count" name="count">
+        {% for n in trivia_counts %}<option value="{{ n }}"{% if n == trivia_default %} selected{% endif %}>{{ n }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-primary"{% if ollama_down or trivia_job %} disabled{% endif %}>Write trivia</button>
+    </form>
+    <p class="hint">Takes about a minute on the Ollama server. No student names are used.</p>
+  </div>
+  {% else %}
+  <div class="card-head">
+    <h2 id="trivia-title">Trivia for class</h2>
+    <span class="muted">{{ trivia.questions|length }} questions · about {{ trivia_minutes }} min</span>
+    <button type="button" class="btn" data-copy="{{ trivia_board }}">Copy for the board</button>
+  </div>
+  <p class="muted trivia-intro">Quick questions to ask the class after the lesson. Each answer comes from a passage in this lesson's sources.</p>
+  <ol class="trivia-list">
+    {% for q in trivia.questions %}
+    {% set i = loop.index0 %}
+    <li id="trivia-q{{ i }}">
+      <span class="trivia-num">Q{{ loop.index }}</span>
+      {% if trivia_editing == i %}
+      <form class="trivia-edit" method="post" action="{{ url_for('today.trivia_edit', subject_id=subject.id, item_id=item_id, index=i) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" name="set_id" value="{{ trivia.id }}" />
+        <label for="trivia-question-{{ i }}">Question</label>
+        <input id="trivia-question-{{ i }}" name="question" maxlength="300" required value="{{ q.question }}" />
+        <label for="trivia-answer-{{ i }}">Answer</label>
+        <input id="trivia-answer-{{ i }}" name="answer" maxlength="300" required value="{{ q.answer }}" />
+        <div class="trivia-edit-actions">
+          <button class="btn btn-primary">Save</button>
+          <a class="btn" href="{{ trivia_url }}">Cancel</a>
+        </div>
+      </form>
+      {% else %}
+      <div class="trivia-text">
+        <p class="trivia-q">{{ q.question }}{% if q.edited %} <span class="chip chip-ok">Edited</span>{% endif %}</p>
+        <p class="trivia-a"><strong>Answer:</strong> {{ q.answer }}
+          {%- set cid = trivia_cites.get(q.chunk_id) %}
+          {%- if cid %} <a class="cite" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=item_id, cite=cid) ~ '#passage-panel' }}" data-panel="{{ url_for('today.passage', subject_id=subject.id, item_id=item_id, citation_id=cid) }}" aria-label="Citation, source {{ q.source_number }}">{{ q.source_number }}</a>
+          {%- else %} <span class="cite" aria-label="Citation, source {{ q.source_number }}">{{ q.source_number }}</span>{% endif %}</p>
+      </div>
+      <div class="trivia-actions">
+        <a class="link-btn" href="{{ url_for('today.lesson', subject_id=subject.id, item_id=item_id, edit=i) ~ '#trivia-q' ~ i }}">Edit</a>
+        <form method="post" action="{{ url_for('today.trivia_new', subject_id=subject.id, item_id=item_id, index=i) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="set_id" value="{{ trivia.id }}" />
+          <button class="link-btn"{% if ollama_down or trivia_job %} disabled{% endif %}>New question</button>
+        </form>
+      </div>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+  {% endif %}
+  {% if trivia_job %}
+  <p class="trivia-progress" role="status">{{ trivia_job.step or "Queued" }}{% if trivia_job.state == "running" %} · {{ trivia_job.progress }}%{% endif %}{% if trivia_job.state == "waiting_ollama" %} · waiting for Ollama{% endif %}</p>
+  {% endif %}
+  {% if trivia_error %}<p class="job-error" role="alert">{{ trivia_error }}</p>{% endif %}
+  {% if trivia %}<p class="hint">New questions come only from this lesson's sources. No student names are shown here or sent to the model.</p>{% endif %}
+</section>

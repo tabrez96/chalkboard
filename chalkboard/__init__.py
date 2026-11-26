@@ -21,6 +21,7 @@ from chalkboard import (
     students,
     subjects,
     today_page,
+    trivia,  # noqa: F401  (registers the trivia jobs)
 )
 from chalkboard.config import Settings
 from chalkboard.db import init_db

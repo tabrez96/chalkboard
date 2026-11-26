@@ -1,13 +1,23 @@
 """S06 Today: the lesson placed on today's date, its steps and sources, and the empty states."""
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
-from flask import Blueprint, abort, g, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    abort,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    url_for,
+)
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-from chalkboard import assistant
+from chalkboard import assistant, trivia
 from chalkboard.chapters_page import time_ranges
 from chalkboard.db import get_session
 from chalkboard.lessons import placement, term_slots
@@ -38,6 +48,8 @@ from chalkboard.placement import (
     time_range,
 )
 from chalkboard.subjects import own_subject
+
+TRIVIA_CHANGED = "This trivia changed since you opened it. Edit the newest version."
 
 bp = Blueprint("today", __name__, url_prefix="/subjects/<int:subject_id>/today")
 
@@ -169,8 +181,18 @@ def lesson_context(subject, placed: list[Placed], current: Placed, cite_id) -> d
     if passage is not None and passage["sentence"].item_id != item_id:
         passage = None
     when = current.when
+    over = class_over(current)
     return {
         **chat_context(session, item_id),
+        **trivia_context(session, item_id, sentences),
+        "class_over": over,
+        "show_trivia": over
+        or request.args.get("trivia") == "1"
+        or request.args.get("edit") is not None,
+        "trivia_url": url_for(
+            "today.lesson", subject_id=subject.id, item_id=item_id, trivia=1
+        )
+        + "#trivia",
         "mode": "lesson",
         "subject": subject,
         "active": "today.show",
@@ -192,6 +214,42 @@ def lesson_context(subject, placed: list[Placed], current: Placed, cite_id) -> d
         "passage": passage,
         "version": version,
     }
+
+
+def class_over(current: Placed) -> bool:
+    return current.when is not None and now() >= current.when + timedelta(
+        minutes=current.lesson.minutes
+    )
+
+
+def trivia_context(session, item_id: int, sentences: list[Sentence]) -> dict:
+    current = trivia.latest_set(session, item_id)
+    job = trivia.trivia_job(session, item_id)
+    questions = current.questions if current else []
+    return {
+        "trivia": current,
+        "trivia_job": job if trivia.busy(job) else None,
+        "trivia_error": trivia.failure(job, current) if job else None,
+        # chunk id -> a lesson citation id, so a trivia number opens the existing passage panel
+        "trivia_cites": {
+            c.chunk_id: c.id for s in sentences for c in s.citations if c.chunk_id
+        },
+        "trivia_board": trivia.board_text(questions),
+        "trivia_minutes": trivia.minutes_for(len(questions)),
+        "trivia_counts": trivia.COUNTS,
+        "trivia_default": trivia.DEFAULT_COUNT,
+        "trivia_editing": request.args.get("edit", type=int),
+    }
+
+
+def trivia_back(subject, item_id: int, **args):
+    return redirect(
+        url_for(
+            "today.lesson", subject_id=subject.id, item_id=item_id, trivia=1, **args
+        )
+        + "#trivia",
+        303,
+    )
 
 
 def render_lesson(subject, placed: list[Placed], current: Placed):
@@ -339,3 +397,107 @@ def chat_passage(subject_id: int, item_id: int, message_id: int, chunk_id: int):
         subject=subject,
         item_id=item_id,
     )
+
+
+def lesson_sentences(session, item_id: int) -> list[Sentence]:
+    return [
+        s for s in lesson_version(session, item_id).sentences if s.item_id == item_id
+    ]
+
+
+@bp.get("/lessons/<int:item_id>/trivia")
+def trivia_card(subject_id: int, item_id: int):
+    subject = own_subject(subject_id)
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    return render_template(
+        "today/_trivia.html",
+        subject=subject,
+        item_id=item_id,
+        ollama_down=ollama_down(),
+        trivia_url=url_for(
+            "today.lesson", subject_id=subject.id, item_id=item_id, trivia=1
+        )
+        + "#trivia",
+        **trivia_context(session, item_id, lesson_sentences(session, item_id)),
+    )
+
+
+@bp.post("/lessons/<int:item_id>/trivia")
+def trivia_write(subject_id: int, item_id: int):
+    subject = own_subject(subject_id)
+    checked_post()
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    trivia.lock_lesson(session, subject.id)
+    if ollama_down() or trivia.busy(trivia.trivia_job(session, item_id)):
+        return trivia_back(subject, item_id)
+    try:
+        trivia.start_write(
+            session,
+            g.teacher.id,
+            subject.id,
+            item_id,
+            request.form.get("count", type=int),
+        )
+    except ValueError:
+        abort(400)
+    session.commit()
+    return trivia_back(subject, item_id)
+
+
+@bp.post("/lessons/<int:item_id>/trivia/questions/<int:index>")
+def trivia_edit(subject_id: int, item_id: int, index: int):
+    subject = own_subject(subject_id)
+    checked_post()
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    current = trivia.latest_set(session, item_id)
+    if current is None:
+        abort(404)
+    if request.form.get("set_id", type=int) != current.id:
+        flash(TRIVIA_CHANGED, "error")
+        return trivia_back(subject, item_id)
+    try:
+        trivia.edit_question(
+            session,
+            current,
+            index,
+            request.form.get("question", ""),
+            request.form.get("answer", ""),
+        )
+    except IndexError:
+        abort(404)
+    except ValueError as exc:
+        flash(str(exc), "error")
+        return trivia_back(subject, item_id, edit=index)
+    except trivia.StaleSet, IntegrityError:
+        # A parallel edit saved the next version after the set_id check.
+        session.rollback()
+        flash(TRIVIA_CHANGED, "error")
+        return trivia_back(subject, item_id)
+    session.commit()
+    return trivia_back(subject, item_id)
+
+
+@bp.post("/lessons/<int:item_id>/trivia/questions/<int:index>/new")
+def trivia_new(subject_id: int, item_id: int, index: int):
+    subject = own_subject(subject_id)
+    checked_post()
+    session = get_session()
+    find_lesson(placement(session, subject), item_id)
+    trivia.lock_lesson(session, subject.id)
+    current = trivia.latest_set(session, item_id)
+    if (
+        ollama_down()
+        or trivia.busy(trivia.trivia_job(session, item_id))
+        or current is None
+        or not 0 <= index < len(current.questions)
+    ):
+        return trivia_back(subject, item_id)
+    if request.form.get("set_id", type=int) != current.id:
+        flash(TRIVIA_CHANGED, "error")
+        return trivia_back(subject, item_id)
+    trivia.start_replace(session, g.teacher.id, subject.id, item_id, current.id, index)
+    session.commit()
+    return trivia_back(subject, item_id)
