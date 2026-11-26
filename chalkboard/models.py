@@ -48,6 +48,8 @@ class Teacher(Base):
     ollama_status: Mapped[str] = mapped_column(String(13), server_default="unknown")
     # Open mode on S08: any public website may be saved as a source.
     allow_any_site: Mapped[bool] = mapped_column(server_default=sa.false())
+    # S08 "Assistant may search the web": allows the Sources + web scope on S06.
+    web_search_enabled: Mapped[bool] = mapped_column(server_default=sa.false())
 
     __table_args__ = (
         CheckConstraint("theme IN ('light', 'dark', 'system')", name="theme"),
@@ -452,7 +454,7 @@ class AddedChapter(Base):
 
 
 CHAT_ROLES = ("teacher", "assistant")
-CHAT_LABELS = ("", "from_sources", "not_in_sources")
+CHAT_LABELS = ("", "from_sources", "not_in_sources", "from_web")
 
 
 class ChatMessage(Base):
@@ -470,13 +472,14 @@ class ChatMessage(Base):
         DateTime(timezone=True), server_default=func.now()
     )
     role: Mapped[str] = mapped_column(String(9))
-    # "sources" for now; "web" is added with web search.
+    # "sources" or "web": the switch position the question was asked with; its answer copies it.
     scope: Mapped[str] = mapped_column(String(7), server_default="sources")
     # Stored as typed; RedactingClient removes names only on the way to the model.
     text: Mapped[str] = mapped_column(Text)
     # "" for the teacher's questions.
     label: Mapped[str] = mapped_column(String(14), server_default="")
     # Answer sentences: [{"text": str, "cites": [[chunk_id, source_number], ...]}]; [] otherwise.
+    # Web answers: [{"text": str, "links": [url, ...]}].
     parts: Mapped[list] = mapped_column(JSONB, server_default=sa.text("'[]'::jsonb"))
     # On a question: the job writing its answer.
     job_id: Mapped[int | None] = mapped_column(
@@ -489,8 +492,9 @@ class ChatMessage(Base):
 
     __table_args__ = (
         CheckConstraint("role IN ('teacher', 'assistant')", name="role"),
-        CheckConstraint("scope IN ('sources')", name="scope"),
+        CheckConstraint("scope IN ('sources', 'web')", name="scope"),
         CheckConstraint(
-            "label IN ('', 'from_sources', 'not_in_sources')", name="label"
+            "label IN ('', 'from_sources', 'not_in_sources', 'from_web')",
+            name="label",
         ),
     )

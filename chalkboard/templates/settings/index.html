@@ -100,6 +100,18 @@
       </div>
     </form>
   </section>
+  {% set web_on = g.teacher.web_search_enabled %}
+  <section class="card" aria-labelledby="web-title">
+    <form method="post" action="{{ url_for('settings.web_search') }}" class="switch-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="enabled" value="{{ '0' if web_on else '1' }}" />
+      <button type="submit" class="switch" role="switch" aria-checked="{{ 'true' if web_on else 'false' }}" aria-labelledby="web-title" aria-describedby="web-hint"></button>
+      <div>
+        <strong id="web-title">Assistant may search the web</strong>
+        <span id="web-hint" class="site-use">Only when you choose "Sources + web". Web answers are always labelled.</span>
+      </div>
+    </form>
+  </section>
 </div>
 </div>
 {% endblock %}

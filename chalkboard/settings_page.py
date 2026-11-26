@@ -134,6 +134,10 @@ class OpenModeForm(FlaskForm):
     allow_any = StringField(validators=[AnyOf(["0", "1"])])
 
 
+class WebSearchForm(FlaskForm):
+    enabled = StringField(validators=[AnyOf(["0", "1"])])
+
+
 def render_settings(
     form: OllamaForm,
     result: Health | None = None,
@@ -263,6 +267,16 @@ def open_mode():
     current_teacher().allow_any_site = form.allow_any.data == "1"
     get_session().commit()
     return sites_home()
+
+
+@bp.post("/web-search")
+def web_search():
+    form = WebSearchForm()
+    if not form.validate_on_submit():
+        abort(400)
+    current_teacher().web_search_enabled = form.enabled.data == "1"
+    get_session().commit()
+    return redirect(url_for("settings.show", _anchor="web-title"))
 
 
 @bp.post("/theme")

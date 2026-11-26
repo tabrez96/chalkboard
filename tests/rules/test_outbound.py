@@ -8,6 +8,7 @@ import pytest
 from chalkboard import net
 from chalkboard.ai import OllamaConfig
 from chalkboard.ai.ollama import OllamaClient
+from chalkboard.ai.websearch import searxng_client
 from chalkboard.net import (
     OutboundBlocked,
     PageBlocked,
@@ -16,8 +17,24 @@ from chalkboard.net import (
     guarded_client,
 )
 from chalkboard.sites import SiteAccess
+from tests.test_assistant import (
+    UNSUPPORTED,
+    WEB_ANSWER,
+    lesson,
+    post_scoped,
+    run_all,
+    searx,
+    sentences,
+    server,
+    web_on,
+)
+from tests.test_today_page import signed_in, sourced, subject, timetable
+
+# Reuse the assistant tests' fixtures.
+fixtures = (lesson, searx, server, signed_in, sourced, subject, timetable, web_on)
 
 OLLAMA = "http://ollama.test:11434"
+SEARXNG = "http://searxng.test:8080"
 FORBIDDEN = re.compile(
     r"\bhttpx\.(Client|AsyncClient|HTTPTransport|AsyncHTTPTransport|get|post|put|patch|delete|request|stream)\b"
     r"|\burllib\.request\b|\bimport requests\b|\bhttp\.client\b"
@@ -62,6 +79,13 @@ def test_ollama_client_cannot_reach_other_hosts():
     client = OllamaClient(OllamaConfig(OLLAMA, "e", "w"), transport=inner)
     with pytest.raises(OutboundBlocked):
         client.http.get("http://example.com/")
+    assert inner.seen == []
+
+
+def test_searxng_client_cannot_reach_other_hosts():
+    inner = Recording()
+    with pytest.raises(OutboundBlocked):
+        searxng_client(SEARXNG, transport=inner).get("http://example.com/")
     assert inner.seen == []
 
 
@@ -216,3 +240,22 @@ def test_is_public():
     assert net.is_public(["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"])
     assert not net.is_public([])
     assert not net.is_public(["fe80::1%eth0"])
+
+
+def test_ai_code_contacts_only_ollama_and_searxng(
+    app, signed_in, timetable, lesson, server, searx, web_on
+):
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED, WEB_ANSWER]
+    post_scoped(signed_in, timetable, lesson[0], "Who ran fastest?", "web")
+    run_all(app)
+    assert len(searx.seen) == 1  # the web-scope answer job really searched
+    settings = app.extensions["chalkboard.settings"]
+    OllamaClient(OllamaConfig(settings.ollama_url, "e", "w"), transport=searx).health()
+    allowed = {origin(settings.ollama_url), origin(settings.searxng_url)}
+    assert {origin(str(r.url)) for r in searx.seen} <= allowed
+    assert len(searx.seen) == 2  # the search and the health check
+
+
+def origin(url: str):
+    parts = httpx.URL(url)
+    return (parts.scheme, parts.host, parts.port or net.DEFAULT_PORTS[parts.scheme])

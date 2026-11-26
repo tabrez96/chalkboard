@@ -2301,6 +2301,31 @@ a.unit-cite {
   background: transparent;
 }
 
+.bubble-web {
+  background: var(--web-soft);
+}
+
+.bubble-web .chip-web {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.web-links {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.web-links a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.scope-off a {
+  color: inherit;
+}
+
 .typing {
   display: inline-flex;
   align-self: flex-start;

@@ -3,7 +3,8 @@
 Every request the app makes goes through `guarded_client`, which refuses any origin that is not on its allow-list
 before a connection is opened. The configured Ollama server is allowed through `guarded_client` directly; saved web
 pages go through `fetch_page`, which allows one origin per hop, re-checks every redirect against the subject's sites
-and refuses private addresses. The SearXNG rules are added by a later ticket.
+and refuses private addresses. The configured SearXNG server
+is allowed the same way, by `ai.websearch.searxng_client`.
 """
 
 import ipaddress

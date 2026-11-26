@@ -1,0 +1,11 @@
+# Only the app calls this instance, over the JSON API; the rate limiter would need Valkey and is not needed.
+use_default_settings: true
+server:
+  secret_key: "overridden-by-SEARXNG_SECRET"
+  limiter: false
+  image_proxy: false
+search:
+  safe_search: 1
+  formats:
+    - html
+    - json

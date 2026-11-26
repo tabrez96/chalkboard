@@ -1,8 +1,9 @@
+import httpx
 import pytest
 from sqlalchemy import func, select
 
 from chalkboard import assistant, jobs
-from chalkboard.ai import FACTORY_KEY, RedactingClient
+from chalkboard.ai import FACTORY_KEY, TRANSPORT_KEY, RedactingClient
 from chalkboard.ai.fake import FakeOllama
 from chalkboard.ai.retrieve import Passage
 from chalkboard.ai.write import DraftSentence
@@ -290,3 +291,177 @@ def test_chat_passage_shows_chunk(
     db_session.query(Chunk).filter(Chunk.id == chunk_id).delete()
     db_session.commit()
     assert "Source 2 · source deleted" in html(signed_in, url)
+
+
+WEB_RESULT = {
+    "results": [
+        {
+            "url": "https://en.wikipedia.org/wiki/Usain_Bolt",
+            "title": "Usain Bolt",
+            "content": "Bolt set the 100 m record in 2009.",
+        }
+    ]
+}
+WEB_ANSWER = {
+    "sentences": [{"text": "Bolt set the record in 2009.", "results": ["W1"]}]
+}
+
+
+class Searx(httpx.MockTransport):
+    """Answers SearXNG's JSON API and records every request; `reply` may be an exception."""
+
+    def __init__(self, reply=None):
+        self.seen = []
+        self.reply = (
+            reply if reply is not None else httpx.Response(200, json=WEB_RESULT)
+        )
+        super().__init__(self.answer)
+
+    def answer(self, request):
+        self.seen.append(request)
+        if isinstance(self.reply, Exception):
+            raise self.reply
+        return self.reply
+
+
+@pytest.fixture
+def searx(app):
+    transport = Searx()
+    app.extensions[TRANSPORT_KEY] = transport
+    return transport
+
+
+@pytest.fixture
+def web_on(teacher, db_session):
+    teacher.web_search_enabled = True
+    db_session.commit()
+
+
+def post_scoped(client, subject, item_id, text, scope, htmx=False):
+    token = csrf_token(client, today_url(subject, f"/lessons/{item_id}"))
+    return client.post(
+        chat_url(subject, item_id),
+        data={"question": text, "scope": scope, "csrf_token": token},
+        headers={"HX-Request": "true"} if htmx else {},
+    )
+
+
+def test_web_answer_labelled_with_links(
+    app, signed_in, db_session, timetable, lesson, server, searx, web_on
+):
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED, WEB_ANSWER]
+    post_scoped(signed_in, timetable, lesson[0], "Who ran fastest?", "web")
+    run_all(app)
+    [question, answer] = messages(db_session)
+    assert (question.scope, answer.scope, answer.label) == ("web", "web", "from_web")
+    assert answer.parts == [
+        {
+            "text": "Bolt set the record in 2009.",
+            "links": ["https://en.wikipedia.org/wiki/Usain_Bolt"],
+        }
+    ]
+    [request] = searx.seen
+    assert request.url.params["q"] == "Who ran fastest?"
+    page = html(signed_in, today_url(timetable, f"/lessons/{lesson[0]}"))
+    assert "From the web" in page and "bubble-web" in page
+    assert 'href="https://en.wikipedia.org/wiki/Usain_Bolt"' in page
+    assert ">en.wikipedia.org/wiki/Usain_Bolt</a>" in page
+    assert "check before using in class" in page
+
+
+def test_web_off_sends_nothing_to_searxng(
+    app, signed_in, db_session, timetable, lesson, server, searx
+):
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED]
+    post_scoped(signed_in, timetable, lesson[0], "Who ran fastest?", "web")
+    run_all(app)
+    [question, answer] = messages(db_session)
+    assert (question.scope, answer.scope, answer.label) == (
+        "sources",
+        "sources",
+        "not_in_sources",
+    )
+    assert searx.seen == []
+    page = html(signed_in, today_url(timetable, f"/lessons/{lesson[0]}"))
+    assert "Web search is off in" in page
+    assert 'data-scope="web" aria-pressed="false" disabled' in page
+
+
+def test_web_turned_off_before_the_job_runs(
+    app, signed_in, db_session, teacher, timetable, lesson, server, searx, web_on
+):
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED]
+    post_scoped(signed_in, timetable, lesson[0], "Who ran fastest?", "web")
+    teacher.web_search_enabled = False
+    db_session.commit()
+    run_all(app)
+    assert searx.seen == []
+    assert messages(db_session)[1].text == assistant.NOT_IN_SOURCES.format(
+        subject="Physics"
+    )
+
+
+def test_sources_answer_in_web_scope_skips_search(
+    app, signed_in, db_session, timetable, lesson, server, searx, web_on
+):
+    server.generated = [sentences("A force changes motion."), SUPPORTED]
+    post_scoped(signed_in, timetable, lesson[0], "What is force?", "web")
+    run_all(app)
+    assert messages(db_session)[1].label == "from_sources"
+    assert searx.seen == []
+
+
+def test_web_query_has_no_student_names(
+    app, signed_in, db_session, timetable, lesson, server, searx, web_on
+):
+    timetable.students = [Student(name="Mia Chen")]
+    db_session.commit()
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED, WEB_ANSWER]
+    post_scoped(signed_in, timetable, lesson[0], "Did Mia Chen run fast?", "web")
+    run_all(app)
+    [request] = searx.seen
+    assert "Mia" not in request.url.params["q"]
+    assert "Chen" not in request.url.params["q"]
+
+
+def test_searxng_down_says_so(
+    app, signed_in, db_session, timetable, lesson, server, searx, web_on
+):
+    searx.reply = httpx.ConnectError("down")
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED]
+    post_scoped(signed_in, timetable, lesson[0], "Who ran fastest?", "web")
+    run_all(app)
+    answer = messages(db_session)[1]
+    assert answer.label == "not_in_sources"
+    assert answer.text == assistant.WEB_UNAVAILABLE.format(subject="Physics")
+    page = html(signed_in, today_url(timetable, f"/lessons/{lesson[0]}"))
+    assert "web search isn&#39;t answering right now" in page
+
+
+def test_web_without_usable_results_says_so(
+    app, signed_in, db_session, timetable, lesson, server, searx, web_on
+):
+    searx.reply = httpx.Response(200, json={"results": []})
+    server.generated = [sentences("Force is cheese."), UNSUPPORTED]
+    post_scoped(signed_in, timetable, lesson[0], "Who ran fastest?", "web")
+    run_all(app)
+    answer = messages(db_session)[1]
+    assert answer.text == assistant.NOT_FOUND_WEB.format(subject="Physics")
+    assert (answer.label, answer.scope) == ("not_in_sources", "web")
+
+
+def test_switch_stays_on_web_after_htmx_post(
+    signed_in, db_session, timetable, lesson, server, searx, web_on
+):
+    response = post_scoped(
+        signed_in, timetable, lesson[0], "Who ran fastest?", "web", htmx=True
+    )
+    page = response.get_data(as_text=True)
+    assert 'data-scope="web" aria-pressed="true"' in page
+    assert 'name="scope" value="web"' in page
+    assert "Web search is off" not in page
+
+
+def test_web_links_dedupes_in_order():
+    parts = [{"links": ["a", "b"]}, {"links": ["b", "c"]}]
+    assert assistant.web_links(parts) == ["a", "b", "c"]
