@@ -59,6 +59,51 @@
       <button type="submit" name="theme" value="system" aria-pressed="{{ 'true' if g.teacher.theme == 'system' else 'false' }}">Match system</button>
     </form>
   </section>
+  <section class="card" aria-labelledby="backups-title">
+    <h2 id="backups-title">Backups</h2>
+    <p class="card-sub">{{ backup_line }}</p>
+    {% if backups_allowed %}
+    {% if backup_job %}
+    {% with job=backup_job, active=True %}{% include "jobs/_status.html" %}{% endwith %}
+    {% else %}
+    <div class="actions">
+      <form method="post" action="{{ url_for('settings.back_up_now') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button class="btn" type="submit">Back up now</button>
+      </form>
+      {% if has_backup %}<a class="btn btn-ghost" href="{{ url_for('settings.download_backup') }}">Download latest</a>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="card-sub">Backups cover every account on this server. Run <code>flask backup</code> on the server.</p>
+    {% endif %}
+  </section>
+  <section class="card card-delete" aria-labelledby="delete-title">
+    <h2 id="delete-title">Delete data</h2>
+    {% if subjects %}
+    <form method="get" action="{{ url_for('settings.confirm_delete_subject') }}" class="delete-row">
+      <div class="field">
+        <label for="delete-subject">One subject</label>
+        <select id="delete-subject" name="subject_id">
+          {% for item in subjects %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="btn" type="submit">Delete subject</button>
+      <span class="hint">Sources, plans and students.</span>
+    </form>
+    {% endif %}
+    <form method="post" action="{{ url_for('settings.delete_everything_route') }}" class="delete-row" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      {% set confirm_field = delete_form.confirm %}
+      <div class="field">
+        <label for="delete-confirm">Everything</label>
+        <input id="delete-confirm" name="confirm" type="text" autocomplete="off" aria-describedby="delete-hint{% if confirm_field.errors %} delete-confirm-error{% endif %}"{% if confirm_field.errors %} aria-invalid="true"{% endif %} />
+        {% if confirm_field.errors %}<p class="field-error" id="delete-confirm-error">{{ confirm_field.errors[0] }}</p>{% endif %}
+      </div>
+      <button class="btn btn-danger" type="submit">Delete everything</button>
+      <span class="hint" id="delete-hint">Type DELETE to confirm. Your account stays; older backups keep a copy until they are rotated out.</span>
+    </form>
+  </section>
 </div>
 <div class="settings-side">
   {% set open_on = g.teacher.allow_any_site %}
@@ -114,4 +159,9 @@
   </section>
 </div>
 </div>
+{% if confirm_subject %}{% include "settings/_confirm_subject.html" %}{% endif %}
+{% if confirm_embed %}{% include "settings/_confirm_embed.html" %}{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if confirm_subject or confirm_embed %}<script src="{{ url_for('static', filename='js/modal.js') }}" defer></script>{% endif %}
 {% endblock %}

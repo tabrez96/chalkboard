@@ -66,7 +66,9 @@ def db_session(db_connection):
 
 
 def make_app(db_connection):
-    app = create_app(Settings(database_url=TEST_DATABASE_URL, secret_key="test"))
+    app = create_app(
+        Settings(database_url=TEST_DATABASE_URL, secret_key="test", daily_backup=False)
+    )
     app.config["TESTING"] = True
     # Route every request's session into the per-test transaction; commits become savepoints.
     app.extensions[SESSIONMAKER_KEY] = sessionmaker(

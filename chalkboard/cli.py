@@ -1,12 +1,14 @@
 import logging
 import signal
 import threading
+from pathlib import Path
 
 import click
 from flask import current_app
 from flask.cli import with_appcontext
 from sqlalchemy import select
 
+from chalkboard.backup import BackupError, create_backup, restore_backup
 from chalkboard.db import get_session
 from chalkboard.models import Teacher
 from chalkboard.passwords import MIN_LENGTH, hash_password, normalise_email
@@ -73,3 +75,28 @@ def worker(poll):
         signal.signal(sig, lambda *_: stop.set())
     click.echo("Worker started.")
     run_worker(current_app._get_current_object(), poll, stop)
+
+
+@click.command("backup")
+@with_appcontext
+def backup():
+    """Write a backup archive now (database and source files)."""
+    settings = current_app.extensions["chalkboard.settings"]
+    try:
+        path = create_backup(settings)
+    except BackupError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Backup written to {path}.")
+
+
+@click.command("restore")
+@click.argument("archive", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@with_appcontext
+def restore(archive):
+    """Restore a backup archive into an empty database."""
+    settings = current_app.extensions["chalkboard.settings"]
+    try:
+        restore_backup(settings, get_session(), archive)
+    except BackupError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Restored {archive.name}.")
