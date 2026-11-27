@@ -17,3 +17,4 @@ class Settings(BaseSettings):
     embed_model: str = "qwen3-embedding:0.6b"
     write_model: str = "qwen3.5:9b"
     searxng_url: str = "http://localhost:8888"
+    daily_backup: bool = True

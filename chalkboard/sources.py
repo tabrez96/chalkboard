@@ -128,7 +128,13 @@ def store_page(session: Session, subject: Subject, url: str) -> Source:
 def delete_source(session: Session, source: Source) -> None:
     path = data_dir() / source.file_path
     # A running job is left alone: its handler does nothing once the row is gone.
-    if source.job is not None and source.job.state in ("queued", "waiting_ollama"):
+    # A re-embedding job is shared by every source, so it keeps running for the others.
+    job = source.job
+    if (
+        job is not None
+        and job.kind != "reembed_all"
+        and job.state in ("queued", "waiting_ollama")
+    ):
         session.delete(source.job)
     # Chunks go with the row through the foreign key's ON DELETE CASCADE.
     session.delete(source)

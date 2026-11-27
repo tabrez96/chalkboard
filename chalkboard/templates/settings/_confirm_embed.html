@@ -1,0 +1,22 @@
+{% from "_icons.html" import icon %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="confirm-embed-title">
+    <div class="modal-head">
+      <h2 id="confirm-embed-title">Change the embedding model?</h2>
+      <a class="icon-btn" href="{{ url_for('settings.show') }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <p>Every source is read again with <strong>{{ confirm_embed.embed_model }}</strong>. Progress shows on each subject's Sources page. Search and the assistant work meanwhile, but may be less precise until it finishes.</p>
+    <form method="post" action="{{ url_for('settings.ollama') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="ollama_url" value="{{ confirm_embed.url }}" />
+      <input type="hidden" name="embed_model" value="{{ confirm_embed.embed_model }}" />
+      <input type="hidden" name="write_model" value="{{ confirm_embed.write_model }}" />
+      <input type="hidden" name="action" value="save" />
+      <input type="hidden" name="confirm" value="1" />
+      <div class="modal-foot">
+        <a class="btn" href="{{ url_for('settings.show') }}" autofocus>Cancel</a>
+        <button class="btn btn-primary" type="submit">Change and re-read</button>
+      </div>
+    </form>
+  </div>
+</div>

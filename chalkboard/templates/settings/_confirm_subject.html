@@ -1,0 +1,17 @@
+{% from "_icons.html" import icon %}
+<div class="modal-backdrop">
+  <div class="modal modal-narrow" role="dialog" aria-modal="true" aria-labelledby="confirm-subject-title">
+    <div class="modal-head">
+      <h2 id="confirm-subject-title">Delete {{ confirm_subject.name }}?</h2>
+      <a class="icon-btn" href="{{ url_for('settings.show') }}" aria-label="Close">{{ icon('close', 16) }}</a>
+    </div>
+    <p>Its {{ subject_counts.sources }} sources, {{ subject_counts.plans }} plan versions and {{ subject_counts.students }} students will be removed. This can't be undone.</p>
+    <form method="post" action="{{ url_for('settings.delete_subject_route', subject_id=confirm_subject.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="modal-foot">
+        <a class="btn" href="{{ url_for('settings.show') }}" autofocus>Cancel</a>
+        <button class="btn btn-danger" type="submit">Delete {{ confirm_subject.name }}</button>
+      </div>
+    </form>
+  </div>
+</div>

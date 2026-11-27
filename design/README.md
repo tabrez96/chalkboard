@@ -13,7 +13,7 @@ Status: **draft** (UX not approved yet), **approved**, **building** (a ticket fo
 | S03 | [Sources](screens/S03-sources/screen.html) (+3 states) · [spec](screens/S03-sources/spec.md) | building | Add, review and remove the sources a subject's plans are written from | T-220, T-221, T-230, T-238, T-242, T-245 | 2026-11-22 |
 | S04 | [Overview](screens/S04-overview/screen.html) (+7 states) · [spec](screens/S04-overview/spec.md) | built |  | T-223, T-224, T-245, T-248 | 2026-11-22 |
 | S05 | [Chapters and classes](screens/S05-chapters/screen.html) (+1 states) · [spec](screens/S05-chapters/spec.md) | built | Write, approve and split each chapter into class-length lessons | T-225, T-248, T-249 | 2026-11-22 |
-| S06 | [Today](screens/S06-today/screen.html) (+6 states) · [spec](screens/S06-today/spec.md) | building | Teach today's lesson from its plan, with its sources and an assistant | T-226, T-227, T-228, T-229, T-249 | 2026-11-22 |
+| S06 | [Today](screens/S06-today/screen.html) (+6 states) · [spec](screens/S06-today/spec.md) | built | Teach today's lesson from its plan, with its sources and an assistant | T-226, T-227, T-228, T-229, T-249 | 2026-11-22 |
 | S07 | [Students](screens/S07-students/screen.html) (+1 states) · [spec](screens/S07-students/spec.md) | built | Keep the class list for a subject | T-217 | 2026-11-22 |
 | S08 | [Settings](screens/S08-settings/screen.html) (+1 states) · [spec](screens/S08-settings/spec.md) | building | Connect the Ollama server, choose allowed websites, theme, backups and deletion | T-213, T-214, T-215, T-220, T-228, T-230, T-231 | 2026-11-22 |
 | S09 | [Teacher Guide](screens/S09-teacher-guide/screen.html) · [spec](screens/S09-teacher-guide/spec.md) | building |  | T-212, T-231 | 2026-11-22 |

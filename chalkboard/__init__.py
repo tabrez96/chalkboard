@@ -6,6 +6,7 @@ from flask_wtf import CSRFProtect
 from chalkboard import (
     ai,
     auth,
+    backup,  # noqa: F401  (registers the backup job)
     chapters,  # noqa: F401  (registers the generate_chapter job)
     chapters_page,
     cli,
@@ -14,6 +15,7 @@ from chalkboard import (
     lessons,  # noqa: F401  (registers the split_chapter job)
     overview,  # noqa: F401  (registers the generate_overview job)
     overview_page,
+    reembed,  # noqa: F401  (registers the reembed_all job)
     settings_page,
     shell,
     sources,
@@ -57,4 +59,6 @@ def create_app(settings: Settings | None = None) -> Flask:
     app.cli.add_command(cli.create_teacher)
     app.cli.add_command(cli.reset_password)
     app.cli.add_command(cli.worker)
+    app.cli.add_command(cli.backup)
+    app.cli.add_command(cli.restore)
     return app
